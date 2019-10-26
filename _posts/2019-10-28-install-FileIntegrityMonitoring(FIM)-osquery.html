@@ -1,0 +1,405 @@
+---
+layout: default
+title:  "Big Data security on facebook, {File Integrity Monitoring (FIM)} using osquery on Linux"
+date:   2019-10-28 01:00:00 +0200
+published: 2019-10-28 01:00:00 +0200
+comments: true
+categories: development
+tags: [File Integrity Monitoring (FIM),  File Integrity Monitoring, osquery]
+github: "https://github.com/gridgentoo/osquery"
+---
+
+<p>Osquery created by Facebook. Osquery is an open source operating system instrumentation, monitoring, and analytics. Created by Facebook, it exposes an operating system as a high-performance relational database that can be queried using SQL-based queries.</p>
+
+<p>Maintaining real-time insight into the current state of your infrastructure is important. At Facebook, we’ve been working on a framework called osquery which attempts to approach the concept of low-level operating system monitoring a little differently.</p>
+
+<p><a href="https://engineering.fb.com/production-engineering/introducing-osquery/">Introducing osquery. Osquery created by Facebook.</a></p>
+
+<!--more-->
+
+<p>Osquery exposes an operating system as a high-performance relational database. This design allows you to write SQL-based queries efficiently and easily to explore operating systems. With osquery, SQL tables represent the current state of operating system attributes, such as:</p>
+
+<ul>
+	<li>running processes</li>
+	<li>loaded kernel modules</li>
+	<li>open network connections</li>
+</ul>
+
+<p>SQL tables are implemented via an easily extendable API. Several tables already exist and more are being written. To best understand the expressiveness that is afforded to you by osquery, consider the following examples.</p>
+
+<h2>Example queries</h2>
+
+<p>This first example illustrates how you might use osquery to interact with the processes that are running on the current system. Specifically, this query returns all of the processes which are currently executing. The where clause of the query only returns processes where the original binary used to launch the process no longer exists on the filesystem. This is a common tactic used by malicious actors, so this should not return any results on your system, assuming your system isn’t compromised.</p>
+
+{% highlight shell %}
+SELECT name, path, pid FROM processes WHERE on_disk = 0;
+{% endhighlight%} 
+
+<p>Interacting with operating system state via SQL is fun and easy. One of the aspects of SQL that makes it so applicable to operating system analytics is the ability to join different tables together. Consider the following example, which uses data from both the “listening_ports” table and the “processes” table. This query finds all processes that are listening on network ports. Then, using the processes table from the last example, we can join the two tables together since they both expose the pid of the processes in question. This allows you to use generic tables to add context as you explore operating system state.</p>
+
+{% highlight shell %}
+SELECT DISTINCT process.name, listening.port, listening.address, process.pid 
+      FROM processes AS process 
+      JOIN listening_ports AS listening 
+          ON process.pid = listening.pid;
+{% endhighlight%}
+
+<p>There are many tables included with osquery and we’re creating more every day. Tables are easy to write, so we often encourage new contributors to develop a few tables as an introduction to the osquery codebase. For detailed documentation on how to create a table, see the guide on the wiki.</p>
+<p><a href="https://osquery.readthedocs.io/en/stable/development/creating-tables/">See the usage guide on the wiki. Osquery created by Facebook.</a></p>
+
+
+<h2>Prerequisites</h2>
+<ul>
+	<li>Linux (Ubuntu or CentOS)</li>
+	<li>Root privileges</li>
+	<li>Completed first osquery guide</li>
+</ul>
+
+<h2>What we will do</h2>
+<ul>
+	<li>Install osquery on Linux Server</li>
+	<li>Enable Syslog Consumption for osquery</li>
+	<li>Basic osquery Configuration</li>
+	<li>Configure File Integrity Monitoring osquery</li>
+	<li>Testing</li>
+</ul>
+
+
+
+<h2>Install osquery on Linux Server</h2>
+<p>
+Osquery provides its own repository for all platform installation, and the first step we are going to do is installing the osquery package FROM the official osquery repository.
+</p>
+
+<p><b>Install osquery on Linux Server On Ubuntu</b></p>
+{% highlight shell %}
+export OSQUERY_KEY=1484120AC4E9F8A1A577AEEE97A80C63C9D8B80B
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys $OSQUERY_KEY
+{% endhighlight%} 
+
+<p>Add the osquery repository and install the package.</p>
+
+{% highlight shell %}
+sudo add-apt-repository 'deb [arch=amd64] https://pkg.osquery.io/deb deb main'
+sudo apt install osquery -y
+{% endhighlight%} 
+
+<p><b>Install osquery on Linux Server On On CentOS</b></p>
+
+<p>Add the osquery key to the system.</p>
+
+{% highlight shell %}
+curl -L https://pkg.osquery.io/rpm/GPG | sudo tee /etc/pki/rpm-gpg/RPM-GPG-KEY-osquery
+{% endhighlight%} 
+
+<p>Add and enable the osquery repository, and install the package.</p>
+
+{% highlight shell %}
+sudo yum-config-manager --add-repo https://pkg.osquery.io/rpm/osquery-s3-rpm.repo
+sudo yum-config-manager --enable osquery-s3-rpm
+sudo yum install osquery -y
+{% endhighlight%} 
+
+<p>Wait for all packages to be installed.</p>
+
+<p><b>Note:</b></p>
+
+<p>If you get the error about the yum-config-manager command.</p>
+
+{% highlight shell %}
+sudo: yum-config-manager: command not found
+{% endhighlight%} 
+
+<p>Install the 'yum-utils' package.</p>
+
+{% highlight shell %}
+yum -y install yum-utils
+{% endhighlight%} 
+
+<h2>Enable Syslog Consumption in osquery</h2>
+<p><b>On Ubuntu</b></p>
+<p>Install the rsyslog package using the apt command below.</p>
+
+{% highlight shell %}
+sudo apt install rsyslog -y
+{% endhighlight%} 
+
+<p><b>On CentOS</b></p>
+<p>Install the rsyslog package using the yum command below.</p>
+
+{% highlight shell %}
+sudo yum install rsyslog -y
+{% endhighlight%} 
+
+<p>
+After the installation is complete, go to the '/etc/rsyslog.d' directory and create a new configuration file osquery.conf.
+</p>
+
+{% highlight shell %}
+cd /etc/rsyslog.d/
+vim osquery.conf
+{% endhighlight%} 
+
+<p>Paste the following configuration there.</p>
+
+{% highlight shell %}
+template(
+  name="OsqueryCsvFormat"
+  type="string"
+  string="%timestamp:::date-rfc3339,csv%,%hostname:::csv%,%syslogseverity:::csv%,%syslogfacility-text:::csv%,%syslogtag:::csv%,%msg:::csv%\n"
+)
+*.* action(type="ompipe" Pipe="/var/osquery/syslog_pipe" template="OsqueryCsvFormat")
+{% endhighlight%} 
+
+<p>Save and exit.</p>
+
+<h2>Basic Configuration osquery</h2>
+
+<p>osquery default configuration is <b>'osquery.conf'</b>, usually located in the <b>'/etc/osquery'</b> directory. There are samples of the osquery configuration <b>'/usr/share/osquery/osquery.conf'</b> and sample of osquery packs configuration.</p>
+
+<p>In this step, we will learn about the osquery configuration components, create the custom osquery configuration, and then deploy the osqueryd as a service.</p>
+
+<p>osquery configuration formatted as a JSON file contains osquery configuration specifications described below.</p>
+
+<ul>
+	<li>Options: part of the osqueryd CLI command and it determines the apps start and initialization.</li>
+	<li>Schedule: Define flow of the scheduled query names to the query details.</li>
+	<li>Decorators: Used to add additional "decorations" to results and snapshot logs.</li>
+	<li>Packs: a group of the schedule queries.</li>
+	<li>More: File Path, YARA, Prometheus, Views, EC2, Chef Configuration.</li>
+</ul>
+
+<p>Go to the <b>'/etc/osquery'</b> directory and create a new custom configuration <b>'osquery.conf'</b>.</p>
+
+{% highlight shell %}
+cd /etc/osquery/
+vim osquery.conf
+{% endhighlight%} 
+
+<p>Paste the following configurations there.</p>
+
+{% highlight shell %}
+{
+    "options": {
+        "config_plugin": "filesystem",
+        "logger_plugin": "filesystem",
+        "logger_path": "/var/log/osquery",
+        "disable_logging": "false",
+        "log_result_events": "true",
+        "schedule_splay_percent": "10",
+        "pidfile": "/var/osquery/osquery.pidfile",
+        "events_expiry": "3600",
+        "database_path": "/var/osquery/osquery.db",
+        "verbose": "false",
+        "worker_threads": "2",
+        "enable_monitor": "true",
+        "disable_events": "false",
+        "disable_audit": "false",
+        "audit_allow_config": "true",
+        "host_identifier": "fb-labs",
+        "enable_syslog": "true",
+        "syslog_pipe_path": "/var/osquery/syslog_pipe",
+        "force": "true",
+        "audit_allow_sockets": "true",
+        "schedule_default_interval": "3600"
+    },
+
+
+    "schedule": {
+        "crontab": {
+            "query": "SELECT * FROM crontab;",
+            "interval": 300
+        },
+        "system_info": {
+            "query": "SELECT hostname, cpu_brand, physical_memory FROM system_info;",
+            "interval": 3600
+        },
+        "ssh_login": {
+            "query": "SELECT username, time, host FROM last WHERE type=7",
+            "interval": 360
+        }
+    },
+
+    "decorators": {
+        "load": [
+            "SELECT uuid AS host_uuid FROM system_info;",
+            "SELECT user AS username FROM logged_in_users ORDER BY time DESC LIMIT 1;"
+        ]
+    },
+
+    "packs": {
+        "osquery-monitoring": "/usr/share/osquery/packs/osquery-monitoring.conf"
+    }
+}
+{% endhighlight%} 
+
+<p>Save and exit.</p>
+
+<p><b>Note:</b></p>
+
+<ul>
+	<li>We're using the <b>'filesystem'</b> as a config and logger plugins.</li>
+	<li>Define the logger path to the <b>'/var/log/osquery'</b> directory.</li>
+	<li>Enable the syslog pip to the <b>'/var/syslog/syslog_pipe'</b> file.</li>
+	<li>On the scheduler, we define three queries for checking the crontab, system info, and ssh login.</li>
+	<li> Enable the osquery packs named <b>'osquery-monitoring'</b>, and packs files located at the <b>'/usr/share/osquery/packs'</b> directory.</li>
+</ul>
+
+<p>Now start the osqueryd daemon service and enable it to launch every time at system boot.</p>
+
+{% highlight shell %}
+systemctl start osqueryd
+systemctl enable osqueryd
+{% endhighlight%} 
+
+<p>And restart the rsyslog service.</p>
+
+{% highlight shell %}
+systemctl restart rsyslog
+{% endhighlight%} 
+
+<p>Basic configuration osquery has been completed.</p>
+
+<h2>Configure File Integrity Monitoring (FIM) Using osquery</h2>
+
+<p>Osquery provides File Integrity Monitoring on Linux and MacOS Darwin using the inotify and FSEvents. Simply, it monitors and detects any changes of files on the defined directory using the 'file_path'and then store all activity to the file_events table.</p>
+
+<p>In this step, we will configure osquery to monitor important directories such as home, ssh directory, etc, tmp, and the www web root directory using custom FIM packs.</p>
+
+<p>Go to the <b>'/usr/share/osquery/packs'</b> directory and create a new packs configuration file <b>'fim.conf'</b>.</p>
+
+{% highlight shell %}
+cd /usr/share/osquery/packs
+vim fim.conf
+{% endhighlight%} 
+
+<p>Paste configurations below.</p>
+
+{% highlight shell %}
+{
+  "queries": {
+    "file_events": {
+      "query": "SELECT * FROM file_events;",
+      "removed": false,
+      "interval": 300
+    }
+  },
+  "file_paths": {
+    "homes": [
+      "/root/.ssh/%%",
+      "/home/%/.ssh/%%"
+    ],
+      "etc": [
+      "/etc/%%"
+    ],
+      "home": [
+      "/home/%%"
+    ],
+      "tmp": [
+      "/tmp/%%"
+    ],
+      "www": [
+      "/var/www/%%"
+      ]
+  }
+}
+{% endhighlight%} 
+
+<p>Save and exit.</p>
+
+<p>Now back to the <b>'/etc/osquery'</b> configuration directory and edit the <b>'osquery.conf'</b> file.</p>
+
+{% highlight shell %}
+cd /etc/osquery/
+vim osquery.conf
+{% endhighlight%} 
+
+<p>Add the File Integrity Monitoring packs configuration inside the <b>'packs'</b> section.</p>
+
+{% highlight shell %}
+    "packs": {
+        "osquery-monitoring": "/usr/share/osquery/packs/osquery-monitoring.conf",
+        "fim": "/usr/share/osquery/packs/fim.conf"
+    }
+{% endhighlight%} 
+
+<p>Save and exit, then restart the osqueryd service.</p>
+
+
+{% highlight shell %} systemctl restart osqueryd {% endhighlight%} 
+
+<p><b>Note:</b></p>
+
+<p>Keep checking the JSON configuration file using the JSON linter <b>'http://jsonlint.com/'</b> and make sure there is no error.</p>
+
+<h2>Testing</h2>
+
+<p>We will test the File Integrity Monitoring packs by creating a new file on the defined directory <b>'home'</b>and <b>'www'</b>.</p>
+
+<p>Go to the <b>'/var/www/'</b> directory and create a new file named <b>'howtoforge.md'</b>.</p>
+
+{% highlight shell %}
+cd /var/www/
+touch howtoforge.md
+{% endhighlight%} 
+
+Go to the <b>'/home/youruser/'</b> directory and create a new file named <b>'fb-labs.md'</b>.
+
+{% highlight shell %}
+cd /home/vagrant/
+touch fb-labs.md
+{% endhighlight%} 
+
+<p>Now we will check all logs monitoring using the real-time interactive mode osqueryi and the logs of the osquery results.</p>
+
+<p><b>osqueryi</b></p>
+
+<p>Run the osqueryi command below.</p>
+
+{% highlight shell %}
+osqueryi --config-path /etc/osquery/osquery.conf
+{% endhighlight%} 
+
+<p>Now check all logs about file changes in the 'file_events' table.</p>
+<p>For global changes.</p>
+
+{% highlight shell %}
+select * from file_events;
+{% endhighlight%} 
+
+<p>For <b>'home'</b> directory.</p>
+
+{% highlight shell %}
+select target_path, category, action, atime, ctime, mtime from file_events WHERE category="home";
+{% endhighlight%} 
+
+<p>For the <b>'www'</b> web root directory.</p>
+
+{% highlight shell %}
+select target_path, category, action, atime, ctime, mtime from file_events WHERE category="www";
+{% endhighlight%} 
+
+<p><b>osqueryd results log</b></p>
+
+<p>Go to the <b>'/var/log/osquery'</b> directory and you will get the <b>'osqueryd.results.log'</b> file.</p>
+
+{% highlight shell %}
+cd /var/log/osquery/
+ls -lah osqueryd.results.log
+{% endhighlight%} 
+
+<p>Filter the osquery logs using the <b>'grep'</b> command.</p>
+
+{% highlight shell %}
+grep -rin howtoforge.md osqueryd.results.log
+grep -rin fb-labs.md osqueryd.results.log
+{% endhighlight%} 
+
+<p>You will see info about those file has been created.</p>
+
+<p>The installation and configuration of the File Integrity Monitoring (FIM) on Linux Server Ubuntu and CentOS using osquery has been completed successfully.</p>
+
+<p><strong>Reference</strong></p>
+<ul>
+	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>

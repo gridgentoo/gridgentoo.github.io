@@ -1,2 +1,0 @@
-(window.webpackJsonp=window.webpackJsonp||[]).push([[365],{1503:function(n,a,t){"use strict";t.d(a,"a",function(){return i});var e=t(0),o=t.n(e),i=o.a.objectOf(o.a.shape({count:o.a.number,translation:o.a.string,ending:o.a.number}))}}]);
-//# sourceMappingURL=365.18349d4b17a8d0944818.js.map

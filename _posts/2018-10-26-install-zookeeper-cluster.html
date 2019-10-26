@@ -1,0 +1,311 @@
+---
+layout: default
+title:  "How to Setup Apache ZooKeeper Cluster & (Reverse Engineer source code) on Ubuntu 18.04 LTS"
+date:   2019-10-26 01:00:00 +0200
+published: 2019-10-26 01:00:00 +0200
+comments: true
+categories: development
+tags: [ZooKeeper, ZooKeeper Cluster, in-memory]
+github: "https://github.com/gridgentoo/zookeeper-release"
+---
+
+
+<p>Youtube channel (Reverse Engineer source code) ZooKeeper :: for Enterprise Architect's powerful code engineering features is the ability to Reverse Engineer source code into a UML model.<a href="https://www.youtube.com/playlist?list=PLrTrFnOkIFb3vwhhPF8ShsS8kNsn8emtt">(Reverse Engineer source code) ZooKeeper : </a></p>
+
+
+
+<p>код hortonworks : : zookeeper-release-HDP-3.1.4.2-2-tag <a href="https://github.com/gridgentoo/zookeeper-release">zookeeper-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>(Reverse Engineer source code) ZooKeeper :: for Architect: <a href="https://drive.google.com/drive/folders/1kS1VMu1yWk70R15A4g2jWfECHfnxIpRa">(Reverse Engineer source code)zookeeper-release-HDP-3.1.4.2-2-tag</a></p>
+
+<!--more-->
+
+
+<h2>Requirements</h2>
+<ul>
+	<li>A server running Ubuntu 18.04.</li>
+	<li>A root password is setup on your server.</li>
+</ul>
+
+
+<h2>Getting Started</h2>
+<p>
+First, you will need to update your system with the latest version. You can do this by running the following command:
+</p>
+
+{% highlight shell %}
+apt-get update -y
+apt-get upgrade -y
+
+{% endhighlight%} 
+
+
+<h2>Install Java</h2>
+<p>
+Zookeeper is written in Java. So, you will need to install Java to your system. By default, the latest version of Java is not available in the Ubuntu 18.04 default repository. So, add the Java repository with the following command:
+</p>
+
+{% highlight shell %}
+add-apt-repository ppa:linuxuprising/java
+
+{% endhighlight%}
+
+<p>Next, update the repository and install Java with the following command:</p>
+
+{% highlight shell %}
+apt-get update -y
+apt-get install oracle-java11-set-default
+{% endhighlight%}
+
+<p>Once the Java has been installed, you can check the Java version with the following command:</p>
+
+{% highlight shell %}
+java --version
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+java 11.0.2 2018-10-16 LTS
+Java(TM) SE Runtime Environment 18.9 (build 11.0.2+7-LTS)
+Java HotSpot(TM) 64-Bit Server VM 18.9 (build 11.0.2+7-LTS, mixed mode)
+{% endhighlight%}
+
+<p>Once you have finished, you can proceed to the next step.</p>
+
+
+<h2>Create a ZooKeeper User</h2>
+<p>Next, you will need to create a zookeeper user to run zookeeper service.</p>
+<p>First, create a zookeeper user with the following command:</p>
+
+{% highlight shell %}
+useradd zookeeper -m
+usermod --shell /bin/bash zookeeper
+{% endhighlight%}
+
+<p>Next, set a password with the following command:</p>
+
+{% highlight shell %}
+passwd zookeeper
+{% endhighlight%}
+
+<p>Next, add the zookeeper user to the sudo group so it can run commands in a privileged mode:</p>
+
+{% highlight shell %}
+usermod -aG sudo zookeeper
+{% endhighlight%}
+
+<p>After creating user, you can procced to install ZooKeeper.</p>
+
+<h2>Install ZooKeeper</h2>
+
+<p>ZooKeeper stores all configuration and state data to disk. So, you will need to create a directory structure for ZooKeeper with the following command:</p>
+
+{% highlight shell %}
+mkdir -p /data/zookeeper
+{% endhighlight%}
+
+<p>Next, give proper ownership to the /data directory with the following command:</p>
+
+{% highlight shell %}
+chown -R zookeeper:zookeeper /data/zookeeper
+{% endhighlight%}
+
+<p>Next, change the directory to the /opt and download the latest version of ZooKeeper with the following command:</p>
+
+{% highlight shell %}
+cd /opt
+wget https://archive.apache.org/dist/zookeeper/zookeeper-3.4.9/zookeeper-3.4.9.tar.gz
+{% endhighlight%}
+
+<p>Next, extract the downloaded file with the following command:</p>
+
+{% highlight shell %}
+tar -xvzf zookeeper-3.4.9.tar.gz
+{% endhighlight%}
+
+<p>Next, rename the extracted binary with the following command:</p>
+
+{% highlight shell %}
+mv zookeeper-3.4.9 zookeeper
+{% endhighlight%}
+
+
+<p>Next, give ownership to the ZooKeeper user with the following command:</p>
+
+{% highlight shell %}
+chown -R zookeeper:zookeeper /opt/zookeeper
+{% endhighlight%}
+
+
+<h2>Configure ZooKeeper</h2>
+
+<p>Next, you will need to create a configuration file for ZooKeeper. You can do it with the following command:</p>
+
+{% highlight shell %}
+nano /opt/zookeeper/conf/zoo.cfg
+{% endhighlight%}
+
+<p>Add the following lines:</p>
+
+{% highlight shell %}
+tickTime=2500
+dataDir=/data/zookeeper
+clientPort=2181
+maxClientCnxns=80
+{% endhighlight%}
+
+<p>Save and close the file, when you are finished.</p>
+
+<p>Next, start the ZooKeeper service with the following command:</p>
+
+{% highlight shell %}
+cd /opt/zookeeper
+bin/zkServer.sh start
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+ZooKeeper JMX enabled by default
+Using config: /opt/zookeeper/bin/../conf/zoo.cfg
+Starting zookeeper ... STARTED
+{% endhighlight%}
+
+<p>You can connect to the local ZooKeeper server with the following command:</p>
+
+{% highlight shell %}
+bin/zkCli.sh -server 127.0.0.1:2181
+{% endhighlight%}
+
+<p>Once you have connected successfully, you should see the following output:</p>
+
+{% highlight shell %}
+[zk: 127.0.0.1:2181(CONNECTED) 1] 
+{% endhighlight%}
+
+<p>Now, type help on the prompt, you should see the a list of commands that you can execute from the client.</p>
+
+{% highlight shell %}
+help
+ZooKeeper -server host:port cmd args
+	stat path [watch]
+	set path data [version]
+	ls path [watch]
+	delquota [-n|-b] path
+	ls2 path [watch]
+	setAcl path acl
+	setquota -n|-b val path
+	history 
+	redo cmdno
+	printwatches on|off
+	delete path [version]
+	sync path
+	listquota path
+	rmr path
+	get path [watch]
+	create [-s] [-e] path data acl
+	addauth scheme auth
+	quit 
+	getAcl path
+	close 
+	connect host:port
+{% endhighlight%}
+
+<p>Now, type quit to exit from the connected session.</p>
+
+<p>You can stop the ZooKeeper with the following command:</p>
+
+{% highlight shell %}
+bin/zkServer.sh stop
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+ZooKeeper JMX enabled by default
+Using config: /opt/zookeeper/bin/../conf/zoo.cfg
+Stopping zookeeper ... STOPPED
+{% endhighlight%}
+
+<h2>Create a Systemd Service file for ZooKeeper</h2>
+
+<p>Next, you will need to create a systemd service file to manage ZooKeeper service. You can do it with the following command:</p>
+
+{% highlight shell %}
+nano /etc/systemd/system/zookeeper.service
+{% endhighlight%}
+
+<p>Add the following lines:</p>
+
+{% highlight shell %}
+[Unit]
+Description=Zookeeper Daemon
+Documentation=http://zookeeper.apache.org
+Requires=network.target
+After=network.target
+
+[Service]    
+Type=forking
+WorkingDirectory=/opt/zookeeper
+User=zookeeper
+Group=zookeeper
+ExecStart=/opt/zookeeper/bin/zkServer.sh start /opt/zookeeper/conf/zoo.cfg
+ExecStop=/opt/zookeeper/bin/zkServer.sh stop /opt/zookeeper/conf/zoo.cfg
+ExecReload=/opt/zookeeper/bin/zkServer.sh restart /opt/zookeeper/conf/zoo.cfg
+TimeoutSec=30
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+{% endhighlight%}
+
+<p>Save and close the file, when you are finished.</p>
+
+<p>Next, reload the systemd daemon, start the ZooKeeper service and enable it to start on boot time with the following command:</p>
+
+
+{% highlight shell %}
+systemctl daemon-reload
+{% endhighlight%}
+
+{% highlight shell %}
+systemctl start zookeeper
+systemctl enable zookeeper
+{% endhighlight%}
+
+<p>You can check the status of ZooKeeper service with the following command:</p>
+
+{% highlight shell %}
+systemctl status zookeeper
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+? zookeeper.service - Zookeeper Daemon
+   Loaded: loaded (/etc/systemd/system/zookeeper.service; disabled; vendor preset: enabled)
+   Active: active (running) since Wed 2019-03-06 15:03:01 UTC; 5s ago
+     Docs: http://zookeeper.apache.org
+  Process: 3909 ExecStart=/opt/zookeeper/bin/zkServer.sh start /opt/zookeeper/conf/zoo.cfg (code=exited, status=0/SUCCESS)
+ Main PID: 3926 (java)
+    Tasks: 17 (limit: 1113)
+   CGroup: /system.slice/zookeeper.service
+           ??3926 java -Dzookeeper.log.dir=. -Dzookeeper.root.logger=INFO,CONSOLE -cp /opt/zookeeper/bin/../build/classes:/opt/zookeeper/bin/..
+
+Mar 06 15:03:00 ubuntu1804 systemd[1]: Starting Zookeeper Daemon...
+Mar 06 15:03:00 ubuntu1804 zkServer.sh[3909]: ZooKeeper JMX enabled by default
+Mar 06 15:03:00 ubuntu1804 zkServer.sh[3909]: Using config: /opt/zookeeper/conf/zoo.cfg
+Mar 06 15:03:01 ubuntu1804 zkServer.sh[3909]: Starting zookeeper ... STARTED
+Mar 06 15:03:01 ubuntu1804 systemd[1]: Started Zookeeper Daemon.
+{% endhighlight%}
+
+<p>Congratulations! you have successfully installed and configured ZooKeeper single node cluster on Ubuntu 18.04 server. You can now deploy multi-node ZooKeeper cluster for production. Feel free to ask me if you have any questions.</p>
+
+
+<p>Thanks for reading</p>
+
+<p><strong>Other resources</strong></p>
+<ul>
+	<li>Enterprise Architect's powerful code engineering features is the ability to Reverse Engineer source code into a UML model. If you are interested in how to (Reverse Engineer source code) zookeeper-release-HDP for Architect: Архитектура ZooKeeper : <a href="https://www.youtube.com/playlist?list=PLrTrFnOkIFb3vwhhPF8ShsS8kNsn8emtt">(Reverse Engineer source code) ZooKeeper : </a></li>
+</ul>

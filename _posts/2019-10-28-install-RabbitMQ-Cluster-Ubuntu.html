@@ -1,0 +1,96 @@
+---
+layout: default
+title:  "Install RabbitMQ Cluster on Ubuntu 18.04 LTS"
+date:   2019-10-28 01:00:00 +0200
+published: 2019-10-28 01:00:00 +0200
+comments: true
+categories: development
+tags: [RabbitMQ Cluster, RabbitMQ, osquery]
+github: "https://github.com/gridgentoo/osquery"
+---
+
+<p>RabbitMQ is an open source message-broker software that originally implemented the AMQP (Advanced Message Queuing Protocol) protocol, and while it has been developed and extended in order to support other protocols such as STOMP (Streaming Text Oriented Messaging Protocol), and MQTT (Message Queuing Telemetry Transport).</p>
+
+<p>A message-queueing / message-broker software is used for sending and receiving messages between distributed systems, applications, and services. RabbitMQ is written in the Erlang programming language, it offers support for client interfaces and libraries for all major programming languages including Python, NodeJS, Java, PHP etc..</p>
+
+<p>In this tutorial, I will show you how to set up a RabbitMQ Cluster on Ubuntu 18.04 Server. I will install a RabbitMQ Cluster using three Ubuntu servers, enable the RabbitMQ Management, and Setup the HA policy for all nodes.</p>
+
+<!--more-->
+
+<h2>Prerequisites</h2>
+
+<ul>
+	<li>3 or more Ubuntu 18.04 Servers</li>
+	<li>10.0.15.21 lab-ubuntu01</li>
+	<li>10.0.15.22 lab-ubuntu02</li>
+  <li>10.0.15.23 lab-ubuntu03</li>
+  <li>Root privileges</li>
+</ul>
+
+<h2>What we will do?</h2>
+
+<ul>
+  <li>Setup Hosts File</li>
+  <li>Install RabbitMQ Server</li>
+  <li>Enable Management Plugins</li>
+  <li>Setup UFW Firewall</li>
+  <li>Setup RabbitMQ Cluster</li>
+  <li>Setup New Administrator User</li>
+  <li>RabbitMQ Setup Queue Mirroring</li>
+  <li>Testing</li>
+</ul>
+
+
+<h2>Setup Hosts File</h2>
+
+<p>In this step, we will edit the '/etc/hosts' file on all servers and map each server IP address as a hostname.</p>
+<p>Edit the <b>'/etc/hosts'</b> file using vim editor.</p>
+
+{% highlight shell %}
+sudo vim /etc/hosts
+{% endhighlight%} 
+
+<p>Now paste the following configuration there.</p>
+
+{% highlight shell %}
+10.0.15.21 lab-ubuntu01
+10.0.15.22 lab-ubuntu02
+10.0.15.23 lab-ubuntu03
+{% endhighlight%} 
+
+<p>Save and exit.</p>
+
+<h2>Install RabbitMQ Server</h2>
+
+<p>Before installing RabbitMQ server, make sure all repositories are updated.</p>
+
+<p>Run the following command.</p>
+
+{% highlight shell %}
+sudo apt update
+sudo apt upgrade
+{% endhighlight%} 
+
+<p>Now install the RabbitMQ server packages from the Ubuntu repository using the apt command below.</p>
+
+{% highlight shell %}
+sudo apt install rabbitmq-server -y
+{% endhighlight%} 
+
+<p>And after the installation is complete, start the RabbitMQ service and enable it to launch everytime at system boot.</p>
+
+{% highlight shell %}
+sudo systemctl start rabbitmq-server
+sudo systemctl enable rabbitmq-server
+{% endhighlight%} 
+
+<p>The RabbitMQ Server has been installed on Ubuntu 18.04.</p>
+
+<h2>Enable RabbitMQ Management Plugins</h2>
+
+############################################
+
+<p><strong>Reference</strong></p>
+<ul>
+	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>
