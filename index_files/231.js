@@ -1,0 +1,2 @@
+(window.webpackJsonp=window.webpackJsonp||[]).push([[231],{574:function(n,e,t){"use strict";t.r(e),t.d(e,"WEB_SITE_FALLBACK_TIMER_MS",function(){return o}),t.d(e,"getMessengerLinks",function(){return a});var o=300,a=function(n,e){return{whatsapp:{deep:"whatsapp://send?phone=".concat(n),shallow:"DESKTOP"===e?"https://web.whatsapp.com/send?phone=".concat(n):"https://wa.me/".concat(n)},viber:{deep:"viber://chat?number=".concat(n),shallow:"https://www.viber.com/download/"}}}}}]);
+//# sourceMappingURL=231.dc7b4a9c8a2fb5356ff6.js.map
