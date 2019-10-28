@@ -1,0 +1,102 @@
+---
+layout: default
+title:  "Kubernetes Cluster for Deploy Nginx Load Balancing on Ubuntu 18.04 LTS"
+date:   2019-10-28 01:12:00 +0200
+published: 2019-10-28 01:12:00 +0200
+comments: true
+categories: development
+tags: [RabbitMQ Cluster, RabbitMQ, erlang erlang.cookie]
+github: "https://github.com/gridgentoo/osquery"
+---
+
+<p>Kubernetes is a free and open-source container orchestration system that can be used to deploy and manage container. It was developed by Google and specially designed for autoscaling and automated deployments. Kubernetes can run on any cloud infrastructure and bare metal. Kubernetes enables you to distribute multiple applications across a cluster of nodes. Kubernetes comes with a rich set of features including, Self-healing, Auto-scalability, Load balancing, Batch execution, Horizontal scaling, Service discovery, Storage orchestration and many more..</p>
+
+<!--more-->
+
+<h2>Prerequisites</h2>
+
+<ul>
+	<li>Two servers with Ubuntu 18.04 installed.</li>
+	<li>Minimum 2 GB of RAM installed on each server.</li>
+	<li>A root password is configured on both servers./li>
+</ul>
+
+<h2>Getting Started</h2>
+
+<p>First, you will need to update both servers with the latest stable version. You can update them by running the following command:</p>
+
+{% highlight shell %}
+apt-get update -y
+apt-get upgrade -y
+{% endhighlight%} 
+
+<p>Once both servers are updated, restart them to apply all the changes.</p>
+
+<p>By default, Kuberenetes does not support swap memory and will not work if swap is active. So you will need to disable swap memory on both servers.</p>
+
+<p>To disable swap memory temporary run the following command:</p>
+
+{% highlight shell %}
+swapoff -a
+{% endhighlight%} 
+
+<p>To disable swap memory permanently open <b>/etc/fstab</b> file:</p>
+
+{% highlight shell %}
+nano /etc/fstab
+{% endhighlight%} 
+
+<p>Comment out the last line:</p>
+
+{% highlight shell %}
+# /etc/fstab: static file system information.
+#
+# use 'blkid' to print the universally unique identifier for a
+# device; this may be used with uuid= as a more robust way to name devices
+# that works even if disks are added and removed. see fstab(5).
+#
+# &lt;file system&gt; &lt;mount point&gt; &lt;type&gt; &lt;options&gt; &lt;dump&gt; &lt;pass&gt;
+# / was on /dev/sda1 during installation
+# swap was on /dev/sda4 during installation
+#UUID=45se21r-1d3t-4263-2198-e464c275e156 none            swap    sw              0       0
+{% endhighlight%} 
+
+
+<p>Save and close the file. Then, run the following command to apply the configuration changes:</p>
+
+{% highlight shell %}
+mount -a
+{% endhighlight%} 
+
+<p>Next, you will need to setup hostname resolution on both servers. So, each server can communicate with each other using the hostname.</p>
+
+<p>To do so, open <b>/etc/hosts</b>/etc/hosts file using your preferred editor:</p>
+
+{% highlight shell %}
+nano /etc/hosts
+{% endhighlight%} 
+
+<p>Add the following lines:</p>
+
+{% highlight shell %}
+192.168.0.103 master
+192.168.0.100 slave
+{% endhighlight%} 
+
+<p>Save and close the file, when you are finished. Then, proceed to the next step.</p>
+
+<h2>Install Docker And Kubernetes</h2>
+
+#############################################################################################################
+
+<p>And you will get the RabbitMQ admin dashboard as shown below.</p>
+<a href="/assets/images/{{page.id}}/connections.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/connections.png" alt="openshift login page"/></a>
+
+<p>The installation and configuration of RabbitMQ Cluster on Ubuntu 18.04 servers have been completed successfully.</p>
+
+<p><strong>Reference</strong></p>
+<ul>
+	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>

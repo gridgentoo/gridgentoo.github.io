@@ -1,11 +1,11 @@
 ---
 layout: default
 title:  "Install RabbitMQ Cluster on Ubuntu 18.04 LTS"
-date:   2019-10-28 01:00:00 +0200
-published: 2019-10-28 01:00:00 +0200
+date:   2019-10-28 01:10:00 +0200
+published: 2019-10-28 01:10:00 +0200
 comments: true
 categories: development
-tags: [RabbitMQ Cluster, RabbitMQ, osquery]
+tags: [RabbitMQ Cluster, RabbitMQ, erlang erlang.cookie]
 github: "https://github.com/gridgentoo/osquery"
 ---
 
@@ -88,7 +88,185 @@ sudo systemctl enable rabbitmq-server
 
 <h2>Enable RabbitMQ Management Plugins</h2>
 
-############################################
+<p>In this step, we will enable RabbitMQ management plugins. It's an interface that allows you to monitor and handle RabbitMQ server from the web browser, running on the default TCP port <b>'15672'</b> .</p>
+
+<p>Enable the RabbitMQ management plugins by running the command below.</p>
+
+{% highlight shell %}
+sudo rabbitmq-plugins enable rabbitmq_management
+{% endhighlight%} 
+
+<p>Make sure there is no error, then restart the RabbitMQ service.</p>
+
+{% highlight shell %}
+sudo systemctl restart rabbitmq-server
+{% endhighlight%} 
+
+<p>RabbitMQ Management plugins have been enabled.</p>
+
+<h2>Setup UFW Firewall</h2>
+
+<p>In this tutorial, we will enable the Ubuntu UFW firewall. We need to open some ports that will be used by the RabbitMQ server.</p>
+
+<p>Add the ssh service to the UFW firewall and enable the firewall service.</p>
+
+{% highlight shell %}
+sudo ufw allow ssh
+sudo ufw enable
+{% endhighlight%} 
+
+<p>Now add new RabbitMQ tcp ports <b>'5672,15672,4369,25672'</b>. </p>
+
+{% highlight shell %}
+sudo ufw allow 5672,15672,4369,25672/tcp
+{% endhighlight%} 
+
+<p>Then check the UFW firewall ports list.</p>
+
+{% highlight shell %}
+sudo ufw status
+{% endhighlight%} 
+
+<p>The Ubuntu UFW firewall configuration has been completed, and we're ready to set up the RabbitMQ Cluster.</p>
+
+<h2>Setup RabbitMQ Cluster</h2>
+
+<p>In order to setup the RabbitMQ cluster, we need to make sure the <b>.erlang.cookie'</b>' file is same on all nodes. We will copy the '.erlang.cookie' file on the <b>'/var/lib/rabbitmq'</b> directory from <b>'lab-ubuntu01'</b> to other node <b>'lab-ubuntu02'</b> and <b>'lab-ubuntu03'</b> .</p>
+
+<p>Copy the <b>'.erlang.cookie'</b> file using scp commands from the <b>'lab-ubuntu01'</b> .</p>
+
+{% highlight shell %}
+scp /var/lib/rabbitmq/.erlang.cookie root@lab-ubuntu02:/var/lib/rabbitmq/
+scp /var/lib/rabbitmq/.erlang.cookie root@lab-ubuntu03:/var/lib/rabbitmq/
+{% endhighlight%} 
+
+<p>Make sure there is no error on both servers.</p>
+
+<p>Next, we need to setup <b>lab-ubuntu02'</b> and <b><'lab-ubuntu03'</b> to join the cluster <b>'lab-ubuntu01'</b> .</p>
+
+<p><b>Note:</b></p>
+
+<ul>
+  <li>Run commands below on <b>'lab-ubuntu02'</b> and <b>'lab-ubuntu03'</b>' servers.</li>
+</ul>
+
+<p>Restart the RabbitMQ service and stop the app.</p>
+
+{% highlight shell %}
+sudo systemctl restart rabbitmq-server
+sudo rabbitmqctl stop_app
+{% endhighlight%} 
+
+<p>Now let RabbitMQ server on both nodes join the cluster on <b>'lab-ubuntu01'</b>, then start the app.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl join_cluster rabbit@lab-ubuntu01
+sudo rabbitmqctl start_app
+{% endhighlight%} 
+
+<p>When it's complete, check the RabbitMQ cluster status.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl cluster_status
+{% endhighlight%} 
+
+<p>And you will get the results as below.</p>
+
+<p>The RabbitMQ Cluster has been created, with <b>lab-ubuntu01</b>, <b>lab-ubuntu02</b>, and <b>lab-ubuntu03</b> as members. </p>
+
+<h2>Setup New Administrator User</h2>
+
+<p>In this tutorial, we will create a new admin user for our RabbitMQ server and delete the default <b>'guest'</b> user. We will be creating a new user from <b>'lab-ubuntu01'</b>, and it will be automatically replicated to all nodes on the cluster.</p>
+
+<p>Add a new user named <b>'lab'</b> with password 'qwerty123'.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl add_user lab qwerty123
+{% endhighlight%} 
+
+<p>Setup the 'lab' user as an administrator.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl set_user_tags lab administrator
+{% endhighlight%} 
+
+<p>And grant the 'lab' user permission to modify, write, and read all vhosts.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl set_permissions -p / lab ".*" ".*" ".*"
+{% endhighlight%} 
+
+<p>Now delete the default 'guest' user.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl delete_user guest
+{% endhighlight%} 
+
+<p>And check all available users.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl list_users
+{% endhighlight%} 
+
+<p>And you will get the result as below.</p>
+
+<p>A new RabbitMQ administrator user has been created, and the default <b>'guest'</b> user is deleted.</p>
+
+<h2>RabbitMQ Setup Queue Mirroring</h2>
+
+<p>By default, contents of a queue within a RabbitMQ cluster are located on a single node (the node on which the queue was declared).</p>
+
+<p>This setup is must, we need to configure the 'ha policy' cluster for queue mirroring and replication to all cluster nodes. If the node that hosts queue master fails, the oldest mirror will be promoted to the new master as long as it synchronized, depends on the '<b>ha-mode'</b> and <b>'ha-params'</b> policies.</p>
+
+<p>Below some example about RabbitMQ ha policies.</p>
+
+<p>Setup ha policy named <b>'ha-all'</b> which all queues on the RabbitMQ cluster will be mirroring to all nodes on the cluster.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl set_policy ha-all ".*" '{"ha-mode":"all"}'
+{% endhighlight%} 
+
+<p>Setup ha policy named 'ha-two' which all queue name start with 'two.' will be mirroring to the two nodes on the cluster.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl set_policy ha-two "^two\." \
+   '{"ha-mode":"exactly","ha-params":2,"ha-sync-mode":"automatic"}'
+{% endhighlight%} 
+
+<p>Setup a high availability policy named 'ha-nodes' which will contain all queues where the name starts with 'nodes.' We will be mirroring to two specific nodes <b>'lab-ubuntu02'</b> and <b>'lab-ubuntu03'</b> in the cluster.
+</p>
+
+{% highlight shell %}
+sudo rabbitmqctl set_policy ha-nodes "^nodes\." \
+   '{"ha-mode":"nodes","ha-params":["rabbit@lab-ubuntu02", "rabbit@lab-ubuntu03"]}'
+{% endhighlight%} 
+
+<p>RabbitMQ list ha policies.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl list_policies;
+{% endhighlight%} 
+
+<p>RabbitMQ delete specific ha policy.</p>
+
+{% highlight shell %}
+sudo rabbitmqctl clear_policy ha-two
+{% endhighlight%} 
+
+<h2>Testing</h2>
+
+<p>Open your web browser and type the IP address of the node with port <b>'15672'</b>.</p>
+
+<p>http://10.0.15.21:15672/</p>
+
+<p>Type the username 'lab' with password 'qwerty123'.</p>
+
+<p>And you will get the RabbitMQ admin dashboard as shown below.</p>
+<a href="/assets/images/{{page.id}}/connections.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/connections.png" alt="openshift login page"/></a>
+
+<p>The installation and configuration of RabbitMQ Cluster on Ubuntu 18.04 servers have been completed successfully.</p>
 
 <p><strong>Reference</strong></p>
 <ul>
