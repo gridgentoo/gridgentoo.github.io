@@ -5,7 +5,7 @@ date:   2019-10-28 01:12:00 +0200
 published: 2019-10-28 01:12:00 +0200
 comments: true
 categories: development
-tags: [RabbitMQ Cluster, RabbitMQ, erlang erlang.cookie]
+tags: [Kubernetes, Kubernetes Cluster, Nginx, Nginx Load Balancing]
 github: "https://github.com/gridgentoo/osquery"
 ---
 
@@ -87,16 +87,234 @@ nano /etc/hosts
 
 <h2>Install Docker And Kubernetes</h2>
 
-#############################################################################################################
+<p>Next, you will need to install Docker and Kubernetes tool kubelet, kubeadm, and kubectl on both servers.</p>
 
-<p>And you will get the RabbitMQ admin dashboard as shown below.</p>
-<a href="/assets/images/{{page.id}}/connections.png"> <img
-  class="center-block img-responsive"
-  src="/assets/images/{{page.id}}/connections.png" alt="openshift login page"/></a>
+<p>First, install required packages and add GPG key with the following command:</p>
 
-<p>The installation and configuration of RabbitMQ Cluster on Ubuntu 18.04 servers have been completed successfully.</p>
+{% highlight shell %}
+apt-get install apt-transport-https ca-certificates curl software-properties-common -y
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+{% endhighlight%} 
 
-<p><strong>Reference</strong></p>
-<ul>
-	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
-</ul>
+<p>Next, add Docker CE repository on both servers by running the following command:</p>
+
+{% highlight shell %}
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+{% endhighlight%} 
+
+<p>Next, update the repository and install Docker CE with the following command:</p>
+
+{% highlight shell %}
+apt-get update -y
+apt-get install docker-ce -y
+{% endhighlight%} 
+
+<p>Once the installation is completed, check the status of Docker CE with the following command:</p>
+
+{% highlight shell %}
+systemctl status docker
+{% endhighlight%} 
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+? docker.service - Docker Application Container Engine
+   Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+   Active: active (running) since Fri 2019-07-19 07:05:50 UTC; 1h 24min ago
+     Docs: https://docs.docker.com
+ Main PID: 3619 (dockerd)
+    Tasks: 8
+   CGroup: /system.slice/docker.service
+           ??3619 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+
+Jul 19 07:05:48 master dockerd[3619]: time="2019-07-19T07:05:48.574491681Z" level=warning msg="Your kernel does not support swap memory limit"
+Jul 19 07:05:48 master dockerd[3619]: time="2019-07-19T07:05:48.575196691Z" level=warning msg="Your kernel does not support cgroup rt period"
+Jul 19 07:05:48 master dockerd[3619]: time="2019-07-19T07:05:48.575733336Z" level=warning msg="Your kernel does not support cgroup rt runtime"
+Jul 19 07:05:48 master dockerd[3619]: time="2019-07-19T07:05:48.582517104Z" level=info msg="Loading containers: start."
+Jul 19 07:05:49 master dockerd[3619]: time="2019-07-19T07:05:49.391255541Z" level=info msg="Default bridge (docker0) is assigned with an IP add
+Jul 19 07:05:49 master dockerd[3619]: time="2019-07-19T07:05:49.681478822Z" level=info msg="Loading containers: done."
+Jul 19 07:05:50 master dockerd[3619]: time="2019-07-19T07:05:50.003776717Z" level=info msg="Docker daemon" commit=0dd43dd graphdriver(s)=overla
+Jul 19 07:05:50 master dockerd[3619]: time="2019-07-19T07:05:50.009892901Z" level=info msg="Daemon has completed initialization"
+Jul 19 07:05:50 master systemd[1]: Started Docker Application Container Engine.
+Jul 19 07:05:50 master dockerd[3619]: time="2019-07-19T07:05:50.279284258Z" level=info msg="API listen on /var/run/docker.sock"
+{% endhighlight%} 
+
+
+<p>Kubernetes packages are not available in the Ubuntu 18.04 default repository. So, you will need to add the Kubernetes repository on both servers.</p>
+
+<p>You can add it with the following commands:</p>
+
+{% highlight shell %}
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+echo 'deb http://apt.kubernetes.io/ kubernetes-xenial main' | tee /etc/apt/sources.list.d/kubernetes.list
+{% endhighlight%} 
+
+<p>Next, update the repository and install Kubernetes packages with the following command:</p>
+
+{% highlight shell %}
+apt-get install kubelet kubeadm kubectl -y
+{% endhighlight%} 
+
+<p>Once all the packages are installed, you can proceed to configure Master server.</p>
+
+<h2>Configure Kubernetes Master Server</h2>
+
+<p>First, you will need to initialize your cluster with its private IP address on the Master server:</p>
+
+<p>You can do it with the kubeadm command:</p>
+
+{% highlight shell %}
+kubeadm init --pod-network-cidr=192.168.0.0/16 --apiserver-advertise-address=192.168.0.103
+{% endhighlight%} 
+
+<p>Once the Cluster initialized successfully, you should see the following output:</p>
+
+{% highlight shell %}
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 192.168.0.103:6443 --token zsyq2w.c676bxzjul3upd7u \
+    --discovery-token-ca-cert-hash sha256:a720ae35d472162177f6ee39de758a5de40043f53e4a3e00aefd6f9832f3436c 
+{% endhighlight%} 
+
+<p>Next, you will need to configure the kubectl tool on your Master server. You can do it with the following command:</p>
+
+{% highlight shell %}
+mkdir -p $HOME/.kube
+cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+chown $(id -u):$(id -g) $HOME/.kube/config
+{% endhighlight%}
+
+<p>Next, you will need to deploy a Container Networking Interface (CNI) on your server. Because, the cluster does not have a CNI.</p>
+
+<p>You can deploy the CNI to your cluster with the following command:</p>
+
+{% highlight shell %}
+kubectl apply -f https://docs.projectcalico.org/v2.6/getting-started/kubernetes/installation/hosted/kubeadm/1.6/calico.yaml
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+configmap/calico-config created
+daemonset.extensions/calico-etcd created
+service/calico-etcd created
+daemonset.extensions/calico-node created
+deployment.extensions/calico-kube-controllers created
+deployment.extensions/calico-policy-controller created
+clusterrolebinding.rbac.authorization.k8s.io/calico-cni-plugin created
+clusterrole.rbac.authorization.k8s.io/calico-cni-plugin created
+serviceaccount/calico-cni-plugin created
+clusterrolebinding.rbac.authorization.k8s.io/calico-kube-controllers created
+clusterrole.rbac.authorization.k8s.io/calico-kube-controllers created
+serviceaccount/calico-kube-controllers created
+{% endhighlight%}
+
+<p>You can now check your namespaces by running the following command:</p>
+
+{% highlight shell %}
+kubectl get namespaces
+{% endhighlight%}
+
+<p>If everything goes fine, you should see the following output:</p>
+
+{% highlight shell %}
+NAME          STATUS    AGE
+default       Active    4h
+kube-public   Active    4h
+kube-system   Active    4h
+{% endhighlight%}
+
+<p>Next, verify whether the master node is now running properly with the following command:</p>
+
+{% highlight shell %}
+kubectl get nodes
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+name     status    roles     age       version
+master   Ready     master    12m       v1.15.3
+{% endhighlight%}
+
+<h2>Add Slave to the Kubernetes Cluster</h2>
+
+<p>Next, log in to your slave server and run the following command to add the slave to the Kubernetes cluster:</p>
+
+{% highlight shell %}
+kubeadm join 192.168.0.103:6443 --token zsyq2w.c676bxzjul3upd7u --discovery-token-ca-cert-hash sha256:a720ae35d472162177f6ee39de758a5de40043f53e4a3e00aefd6f9832f3436c
+{% endhighlight%}
+
+<p>Next, go to the master server and check whether the slave is added to your Kubernetes cluster with the following command:</p>
+
+{% highlight shell %}
+kubectl get nodes
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+name status roles age version
+master ready master 25m v1.15.3
+slave ready 2m v1.15.3
+{% endhighlight%}
+
+<p>Once you are finished, you can proceed to the next step.</p>
+
+<h2>Deploy NGINX on the Kubernetes Cluster</h2>
+
+<p>Kubernetes cluster is now installed, configured and working properly. It's time to deploy Nginx on the Kubernetes cluster.</p>
+
+<p>Go to the Master server and create an Nginx deployment with the following command:</p>
+
+{% highlight shell %}
+kubectl create deployment nginx --image=nginx
+{% endhighlight%}
+
+<p>You can now list the Nginx deployment with the following command:</p>
+
+{% highlight shell %}
+kubectl get deployments
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+NAME    READY   UP-TO-DATE   AVAILABLE   AGE
+nginx   1/1     1            1           99s
+{% endhighlight%}
+
+<p>Once the Nginx has been deployed, the application can be exposed with the following command:</p>
+
+{% highlight shell %}
+kubectl create service nodeport nginx --tcp=80:80
+{% endhighlight%}
+
+<p>You can now see a new Service and ClusterIP address assigned with the following command:</p>
+
+{% highlight shell %}
+kubectl get svc
+{% endhighlight%}
+
+<p>You should see the following output:</p>
+
+{% highlight shell %}
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.152.183.1             443/TCP         15m
+nginx        ClusterIP   10.152.183.199           80:32456/TCP    60s
+{% endhighlight%}
+
+Congratulations! you have successfully deployed Nginx on Kubernetes cluster. You can also add another node to the Kubernetes cluster easily. For more information, refer the Kubernetes official doc at Kubernetes Doc. Feel free to ask me if you have any questions.
+
