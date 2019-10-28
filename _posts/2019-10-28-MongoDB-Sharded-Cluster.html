@@ -1,0 +1,141 @@
+---
+layout: default
+title:  "MongoDB Sharded Cluster on CentOS 7"
+date:   2019-10-28 01:11:00 +0200
+published: 2019-10-28 01:11:00 +0200
+comments: true
+categories: development
+tags: [MongoDB Sharded Cluster, MongoDB]
+github: "https://github.com/gridgentoo/osquery"
+---
+
+<p>Sharding is a MongoDB process to store data-set across different machines. It allows you to perform a horizontal scale of data and to partition all data across independent instances. Sharding allows you to add more machines based on data growth to your stack.</p>
+
+<!--more-->
+
+<h2>Sharding and Replication</h2>
+
+<p>Let's make it simple. When you have collections of music, 'Sharding' will save and keep your music collections in different folders on different instances or replica sets while 'Replication' is just syncing your music collections to other instances.</p>
+
+<h2>Three Sharding Components</h2>
+
+<p><b>Shard</b> - Used to store all data. And in a production environment, each shard is replica sets. Provides high-availability and data consistency.
+</p>
+
+<p><b>Config Server</b> - Used to store cluster metadata, and contains a mapping of cluster data set and shards. This data is used by mongos/query server to deliver operations. It's recommended to use more than 3 instances in production.</p>
+
+<p><b>Mongos/Query Router </b>Mongos/Query Router - This is just mongo instances running as application interfaces. The application will make requests to the 'mongos' instance, and then 'mongos' will deliver the requests using shard key to the shards replica sets.</p>
+
+
+<h2>Prerequisites</h2>
+
+<ul>
+	<li>2 centOS 7 server as Config Replica Sets</li>
+	<li>10.0.15.31      configsvr1</li>
+	<li>10.0.15.32      configsvr2</li>
+  <li>10.0.15.23 lab-ubuntu03</li>
+  <li>4 CentOS 7 server as Shard Replica Sets</li>
+  <li>10.0.15.21      shardsvr1</li>
+  <li>10.0.15.22      shardsvr2</li>
+  <li>10.0.15.23      shardsvr3</li>
+  <li>10.0.15.24      shardsvr4</li>
+  <li>1 CentOS 7 server as mongos/Query Router</li>
+  <li>10.0.15.11       mongos</li>
+  <li>Root privileges</li>
+  <li>Each server connected to another server</li>
+</ul>
+
+
+<h2>Disable SELinux and Configure Hosts</h2>
+
+<p>In this tutorial, we will disable SELinux. Change SELinux configuration from <b>'enforcing'</b> to <b>'disabled'</b>.</p>
+
+<p>Connect to all nodes through OpenSSH.</p>
+
+<h2>Setup Hosts File</h2>
+
+{% highlight shell %}
+ssh root@SERVERIP
+{% endhighlight%} 
+
+<p>Disable SELinux by editing the configuration file.</p>
+
+{% highlight shell %}
+vim /etc/sysconfig/selinux
+{% endhighlight%} 
+
+<p>Change SELINUX value to 'disabled'.</p>
+
+{% highlight shell %}
+SELINUX=disabled
+{% endhighlight%} 
+
+<p>Save and exit.</p>
+
+<p>Next, edit the hosts file on each server.</p>
+
+{% highlight shell %}
+vim /etc/hosts
+{% endhighlight%} 
+
+<p>Paste the following hosts configuration:</p>
+
+{% highlight shell %}
+     10.0.15.31      configsvr1
+     10.0.15.32      configsvr2
+     10.0.15.11      mongos
+     10.0.15.21      shardsvr1
+     10.0.15.22      shardsvr2
+     10.0.15.23      shardsvr3
+     10.0.15.24      shardsvr4
+{% endhighlight%} 
+
+<p>Save and exit.</p>
+
+<p>Now restart all servers using the reboot command.</p>
+
+{% highlight shell %}
+reboot
+{% endhighlight%} 
+
+<h2>Step 2 - Install MongoDB on all instances</h2>
+
+<p>We will use the latest MongoDB version (3.4) for all instances. Add new MongoDB repository by executing the following command:</p>
+
+{% highlight shell %}
+cat <<'EOF' >> /etc/yum.repos.d/mongodb.repo
+[mongodb-org-3.4]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/$releasever/mongodb-org/3.4/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.4.asc
+EOF
+{% endhighlight%} 
+
+<p>Now install mongodb 3.4 from mongodb repository using the yum command below.</p>
+
+{% highlight shell %}
+sudo yum -y install mongodb-org
+{% endhighlight%} 
+
+<p>After mongodb is installed, use 'mongo' or 'mongod' command in the following way to check version details.</p>
+
+{% highlight shell %}
+mongod --version
+{% endhighlight%} 
+
+<h2>Create Config Server Replica Set</h2>
+
+
+<p>And you will get the RabbitMQ admin dashboard as shown below.</p>
+<a href="/assets/images/{{page.id}}/connections.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/connections.png" alt="openshift login page"/></a>
+
+<p>The installation and configuration of RabbitMQ Cluster on Ubuntu 18.04 servers have been completed successfully.</p>
+
+<p><strong>Reference</strong></p>
+<ul>
+	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>
