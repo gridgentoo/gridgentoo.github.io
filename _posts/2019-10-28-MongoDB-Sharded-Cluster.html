@@ -98,7 +98,7 @@ vim /etc/hosts
 reboot
 {% endhighlight%} 
 
-<h2>Step 2 - Install MongoDB on all instances</h2>
+<h2>Install MongoDB on all instances</h2>
 
 <p>We will use the latest MongoDB version (3.4) for all instances. Add new MongoDB repository by executing the following command:</p>
 
@@ -125,17 +125,376 @@ sudo yum -y install mongodb-org
 mongod --version
 {% endhighlight%} 
 
+<a href="/assets/images/{{page.id}}/1.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/1.png" alt="netstat -plntu"/></a>
+
 <h2>Create Config Server Replica Set</h2>
 
+<p>In the 'prerequisites' section, we've already defined config server with 2 machines 'configsvr1' and 'configsvr2'. And in this step, we will configure it to be a replica set.</p>
 
-<p>And you will get the RabbitMQ admin dashboard as shown below.</p>
-<a href="/assets/images/{{page.id}}/connections.png"> <img
+<p>If there is a mongod service running on the server, stop it using the systemctl command.</p>
+
+{% highlight shell %}
+systemctl stop mongo
+{% endhighlight %}
+
+<p>Edit the default mongodb configuration 'mongod.conf' using the Vim editor.</p>
+
+{% highlight shell %}
+vim /etc/mongod.conf
+{% endhighlight %}
+
+<p>Change the DB storage path to your own directory. We will use '/data/db1' for the first server, and '/data/db2' directory for the second config server.</p>
+
+{% highlight shell %}
+storage:
+   dbPath: /data/db1
+{% endhighlight %}
+
+<p>Change the value of the line 'bindIP' to your internal network addres - 'configsvr1' with IP address 10.0.15.31, and the second server with 10.0.15.32.</p>
+
+{% highlight shell %}
+bindIP: 10.0.15.31
+{% endhighlight %}
+
+<p>On the replication section, set a replication name.</p>
+
+{% highlight shell %}
+replication:
+   replSetName: "replconfig01"
+{% endhighlight %}
+
+<p>And under sharding section, define a role of the instances. We will use these two instances as 'configsvr'.</p>
+
+{% highlight shell %}
+sharding:
+   clusterRole: configsvr
+{% endhighlight %}
+
+<p>Save and exit.</p>
+<p>Next, we must create a new directory for MongoDB data, and then change the owner of that directory to 'mongod' user.</p>
+
+{% highlight shell %}
+mkdir -p /data/db1
+chown -R mongod:mongod /data/db1
+{% endhighlight %}
+
+<p>After this, start the mongod service with the command below.</p>
+
+{% highlight shell %}
+mongod --config /etc/mongod.conf
+{% endhighlight %}
+
+<p>You can use the netstat command to check whether or not the mongod service is running on port 27017.</p>
+
+{% highlight shell %}
+netstat -plntu
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/2.png"> <img
   class="center-block img-responsive"
-  src="/assets/images/{{page.id}}/connections.png" alt="openshift login page"/></a>
+  src="/assets/images/{{page.id}}/2.png" alt="netstat -plntu"/></a>
 
-<p>The installation and configuration of RabbitMQ Cluster on Ubuntu 18.04 servers have been completed successfully.</p>
+<p>Configsvr1 and Configsvr2 are ready for the replica set. Connect to the 'configsvr1' server and access the mongo shell.</p>
+
+{% highlight shell %}
+ssh root@configsvr1
+mongo --host configsvr1 --port 27017
+{% endhighlight %}
+
+<p>Initiate the replica set name with all configsvr member using the query below.</p>
+
+{% highlight shell %}
+rs.initiate(
+  {
+    _id: "replconfig01",
+    configsvr: true,
+    members: [
+      { _id : 0, host : "configsvr1:27017" },
+      { _id : 1, host : "configsvr2:27017" }
+    ]
+  }
+)
+{% endhighlight %}
+
+<p>If you get a results '{ "ok" : 1 }', it means the configsvr is already configured with replica set.</p>
+<a href="/assets/images/{{page.id}}/3.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/3.png" alt="rs.initiate"/></a>
+
+<p>and you will be able to see which node is master and which node is secondary.</p>
+
+{% highlight shell %}
+rs.isMaster()
+rs.status()
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/4.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/4.png" alt="replconfig01"/></a>
+
+<p>The configuration of Config Server Replica Set is done.</p>
+
+<h2>Create the Shard Replica Sets</h2>
+
+<p>In this step, we will configure 4 'centos 7' servers as 'Shard' server with 2 'Replica Set'.</p>
+
+<ul>
+  <li>2 server - <b>'shardsvr1'</b> and <b>'shardsvr2'</b> with replica set name: <b>'shardreplica01'</b></li>
+  <li>2 server - <b>'shardsvr3'</b> and <b>'shardsvr4'</b> with replica set name: <b>'shardreplica02'</b></li>
+</ul>
+
+<p>Connect to each server, stop the mongod service (If there is service running), and edit the MongoDB configuration file.</p>
+
+{% highlight shell %}
+systemctl stop mongod
+vim /etc/mongod.conf
+{% endhighlight %}
+
+<p>Change the default storage to your specific directory.</p>
+
+{% highlight shell %}
+storage:
+   dbPath: /data/db1
+{% endhighlight %}
+
+<p>On the 'bindIP' line, change the value to use your internal network address.</p>
+
+{% highlight shell %}
+bindIP: 10.0.15.21
+{% endhighlight %}
+
+<p>On the replication section, you can use <b>'shardreplica01'</b>' for the first and second instances. And use <b>'shardreplica02'</b> for the third and fourth shard servers.</p>
+
+{% highlight shell %}
+replication:
+   replSetName: "shardreplica01"
+{% endhighlight %}
+
+<p>Next, define the role of the server. We will use all this as shardsvr instances.</p>
+
+{% highlight shell %}
+sharding:
+   clusterRole: shardsvr
+{% endhighlight %}
+
+<p>Save and exit.</p>
+
+<p>Now, create a new directory for MongoDB data.</p>
+
+{% highlight shell %}
+mkdir -p /data/db1
+chown -R mongod:mongod /data/db1
+{% endhighlight %}
+
+<p>Start the mongod service.</p>
+
+{% highlight shell %}
+mongod --config /etc/mongod.conf
+{% endhighlight %}
+
+<p>Check MongoDB is running using the following command:</p>
+
+{% highlight shell %}
+netstat -plntu
+{% endhighlight %}
+
+<p>You will see MongoDB is running on the local network address.</p>
+
+<a href="/assets/images/{{page.id}}/5.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/5.png" alt="netstat -plntu"/></a>
+
+<p>Next, create a new replica set for these 2 shard instances. Connect to the 'shardsvr1' and access the mongo shell.</p>
+
+{% highlight shell %}
+ssh root@shardsvr1
+mongo --host shardsvr1 --port 27017
+{% endhighlight %}
+
+<p>Initiate the replica set with the name <b>'shardreplica01'</b>, and the members are <b>'shardsvr1'</b> and <b>'shardsvr2'</b>.</p>
+
+{% highlight shell %}
+rs.initiate(
+   {
+     _id : "shardreplica01",
+     members: [
+       { _id : 0, host : "shardsvr1:27017" },
+       { _id : 1, host : "shardsvr2:27017" }
+     ]
+   }
+ )
+{% endhighlight %}
+
+
+<p>If there is no error, you will see results as below.</p>
+
+<p>Results from <b>shardsvr3</b> and <b>shardsvr4</b> with replica set name <b>'shardreplica02'</b>.</p>
+
+<a href="/assets/images/{{page.id}}/6.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/6.png" alt="rs.initiate"/></a>
+
+<p>Redo this step for <b>shardsvr3</b> and <b>shardsvr4</b> servers with different replica set name <b>'shardreplica02'</b>.</p>
+
+<p>Now we've created 2 replica sets - <b>'shardreplica01'</b> and <b>'shardreplica02'</b> - as the shard.</p>
+
+<h2>Configure mongos/Query Router</h2>
+
+<p>The 'Query Router' or mongos is just instances that run 'mongos'. You can run mongos with the configuration file, or run with just a command line.</p>
+
+<p>Login to the mongos server and stop the MongoDB service.</p>
+
+{% highlight shell %}
+ssh root@mongos  
+systemctl stop mongod
+{% endhighlight %}
+
+<p>Run mongos with the command line as shown below.</p>
+
+{% highlight shell %}
+mongos --configdb "replconfig01/configsvr1:27017,configsvr2:27017"
+{% endhighlight %}
+
+<p>Use the '--configdb' option to define the config server. If you are on production, use at least 3 config servers.</p>
+
+<p>You should see results similar to the following.</p>
+
+{% highlight shell %}
+Successfully connected to configsvr1:27017
+Successfully connected to configsvr2:27017
+{% endhighlight %}
+
+<p>mongos instances are running.</p>
+
+<a href="/assets/images/{{page.id}}/7.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/7.png" alt="rs.initiate"/></a>
+
+<h2>Add shards to mongos/Query Router</h2>
+
+<p>Open another shell from the previous step, connect to the mongos server again, and access the mongo shell.</p>
+
+{% highlight shell %}
+ssh root@mongos
+mongo --host mongos --port 27017
+{% endhighlight %}
+
+<p>Add shard server with the sh mongodb query.</p>
+
+<p>For <b>'shardreplica01'</b> instances:</p>
+
+{% highlight shell %}
+sh.addShard( "shardreplica01/shardsvr1:27017")
+sh.addShard( "shardreplica01/shardsvr2:27017")
+{% endhighlight %}
+
+<p>For <b>'shardreplica02'</b> instances:</p>
+
+{% highlight shell %}
+sh.addShard( "shardreplica02/shardsvr3:27017")
+sh.addShard( "shardreplica02/shardsvr4:27017")
+{% endhighlight %}
+
+<p>Make sure there is no error and check the shard status.</p>
+
+{% highlight shell %}
+sh.status()
+{% endhighlight %}
+
+<p>You will see sharding status similar to the way what the following screenshot shows.</p>
+
+<a href="/assets/images/{{page.id}}/8.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/8.png" alt="rs.initiate"/></a>
+
+<p>We have 2 shard replica set and 1 mongos instance running on our stack.</p>
+
+<h2>Testing</h2>
+
+<p>To test the setup, access the mongos server mongo shell.</p>
+
+{% highlight shell %}
+ssh root@mongos
+mongo --host mongos --port 27017
+{% endhighlight %}
+
+<p><b>Enable Sharding for a Database</b></p>
+
+<p>Create a new database and enable sharding for the new database.</p>
+
+{% highlight shell %}
+use lemp
+sh.enableSharding("lemp")
+sh.status()
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/9.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/9.png" alt="rs.initiate"/></a>
+
+<p>Now see the status of the database, it's has been partitioned to the replica set 'shardreplica01'.</p>
+
+<p><b>Enable Sharding for Collections</b></p>
+
+<p>Next, add new collections to the database with sharding support. We will add new collection named 'stack' with shard collection 'name', and then see database and collections status.</p>
+
+{% highlight shell %}
+sh.shardCollection("lemp.stack", {"name":1})
+sh.status()
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/10.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/10.png" alt="rs.initiate"/></a>
+
+<p>New collections 'stack' with shard collection 'name' has been added.</p>
+
+<p><b>Add documents to the collections 'stack'.</b></p>
+
+<p>Now insert the documents to the collections. When we add documents to the collection on sharded cluster, we must include the 'shard key'.</p>
+
+<p>In the example below, we are using shard key <b>'name'</b>, as we added when enabling sharding for collections.</p>
+
+{% highlight shell %}
+db.stack.save({
+    "name": "LEMP Stack",
+    "apps": ["Linux", "Nginx", "MySQL", "PHP"],
+})
+{% endhighlight %}
+
+<p>As shown in the following screenshots, documents have been successfully added to the collection.</p>
+
+<a href="/assets/images/{{page.id}}/11.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/11.png" alt="rs.initiate"/></a>
+
+<p>If you want to test the database, you can connect to the replica set <b>'shardreplica01'</b> PRIMARY server and open the mongo shell. I'm logging in to the <b>'shardsvr2'</b> PRIMARY server.</p>
+
+{% highlight shell %}
+ssh root@shardsvr2
+mongo --host shardsvr2 --port 27017
+{% endhighlight %}
+
+<p>Check database available on the replica set.</p>
+
+{% highlight shell %}
+show dbs
+use lemp
+db.stack.find()
+{% endhighlight %}
+
+<p>You will see that the database, collections, and documents are available in the replica set.</p>
+
+<a href="/assets/images/{{page.id}}/12.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/12.png" alt="rs.initiate"/></a>
+
+<p>MongoDB Sharded Cluster on CentOS 7 has been successfully installed and deployed</p>
+#############################################################################################
 
 <p><strong>Reference</strong></p>
 <ul>
-	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+	<li><a href="https://docs.mongodb.com/manual/tutorial/deploy-shard-cluster/">Deploy a Sharded Cluster</a></li>
 </ul>
