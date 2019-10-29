@@ -1,0 +1,162 @@
+---
+layout: default
+title:  "Hortonworks Data Platform 3.1.4. HDP Security Features"
+date:   2019-10-29 01:10:00 +0200
+published: 2019-10-29 01:10:00 +0200
+comments: true
+categories: development
+tags: [HDP, Hortonworks, Hortonworks Data Platform, Kerberos, Ambari, Hadoop cluster, Apache Ranger, Apache Knox Gateway, Ranger, Knox, Hadoop REST API, REST API, Apache Atlas. Atlas, ZooKeeper, ZooKeeper Cluster, in-memory]
+github: "https://github.com/gridgentoo/zookeeper-releasee"
+---
+
+<p>HDP uses Apache Ranger to provide centralized security administration and management. The Ranger Administration Portal is the central interface for security administration. You can use Ranger to create and update policies, which are then stored in a policy database.</p>
+<!--more-->
+<p>HDP использует Apache Ranger для обеспечения централизованного администрирования и управления безопасностью. Ranger Administration Portal является центральным интерфейсом для администрирования безопасности. Вы можете использовать Ranger для создания и обновления политик, которые затем сохраняются в базе данных политик.</p>
+
+######################################################################################################
+<p>Ranger plug-ins (lightweight Java programs) are embedded within the processes of each cluster component. For example, the Ranger plug-in for Apache Hive is embedded within HiveServer2:</p>
+
+
+<p>Ranger plug-ins (lightweight Java programs) встроены в процессы каждого компонента кластера. Например, подключаемый модуль Ranger plug-in для Apache Hive встроен в HiveServer2:</p>
+######################################################################################################
+
+<a href="/assets/images/{{page.id}}/sec_ranger_plugin_architecture.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_ranger_plugin_architecture.png" alt="ranger plugin architecture"/></a>
+######################################################################################################
+<p>These plug-ins pull policies from a central server and store them locally in a file. When a user request comes through the component, these plug-ins intercept the request and evaluate it against the security policy. Plug-ins also collect data from the user request and follow a separate thread to send this data back to the audit server.</p>
+
+<p>Эти Plug-ins извлекают политики с центрального сервера и хранят их локально в файле. Когда user request поступает через компонент, эти подключаемые модули перехватывают запрос и оценивают его в соответствии с политикой безопасности. Plug-ins также собирают данные из пользовательского запроса и следуют в отдельном потоке, чтобы отправить эти данные обратно на сервер аудита.</p>
+######################################################################################################
+
+<p><b>Administration</b></p>
+
+######################################################################################################
+<p>To deliver consistent security administration and management, Hadoop administrators require a centralized user interface they can use to define, administer and manage security policies consistently across all of the Hadoop stack components:</p>
+
+<p>Для обеспечения согласованного администрирования и управления безопасностью администраторам Hadoop требуется централизованный пользовательский интерфейс, который они могут использовать для последовательного определения, администрирования и управления политиками безопасности для всех компонентов стека Hadoop:</p>
+######################################################################################################
+
+<a href="/assets/images/{{page.id}}/sec_ranger_centralized_admin.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_ranger_centralized_admin.png" alt="ranger centralized admin"/></a>
+
+<p>The Apache Ranger administration console provides a central point of administration for the other four pillars of Hadoop security.</p>
+
+<a href="/assets/images/{{page.id}}/sec_PM_Console_Home.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_PM_Console_Home.png" alt="PM Console Home"/></a>
+
+<p><b>Authentication and Secure Gateway</b></p>
+
+######################################################################################################
+<p>Establishing user identity with strong authentication is the basis for secure access in Hadoop. Users need to reliably identify themselves and then have that identity propagated throughout the Hadoop cluster to access cluster resources. Hortonworks uses Kerberos for authentication. Kerberos is an industry standard used to authenticate users and resources within a Hadoop cluster. HDP also includes Ambari, which simplifies Kerberos setup, configuration, and maintenance.</p>
+
+<p>Установление личности пользователя с помощью строгой аутентификации является основой для безопасного доступа в Hadoop. Пользователи должны надежно идентифицировать себя, а затем распространить эту идентификацию по всему кластеру Hadoop для доступа к ресурсам кластера. Hortonworks использует Kerberos для аутентификации. Kerberos - это отраслевой стандарт, используемый для аутентификации пользователей и ресурсов в кластере Hadoop. HDP также включает в себя Ambari, что упрощает настройку, настройку и обслуживание Kerberos.</p>
+######################################################################################################
+<p>Apache Knox Gateway is used to help ensure perimeter security for Hortonworks customers. With Knox, enterprises can confidently extend the Hadoop REST API to new users without Kerberos complexities, while also maintaining compliance with enterprise security policies. Knox provides a central gateway for Hadoop REST APIs that have varying degrees of authorization, authentication, SSL, and SSO capabilities to enable a single access point for Hadoop.</p>
+
+<p>Apache Knox Gateway используется для обеспечения безопасности периметра для клиентов Hortonworks. С Knox предприятия могут уверенно расширять Hadoop REST API для новых пользователей без сложностей Kerberos, одновременно поддерживая соответствие политикам безопасности предприятия. Knox обеспечивает центральный шлюз для Hadoop REST APIs, которые имеют различные степени авторизации, аутентификации, SSL и SSO, чтобы включить единую точку доступа для Hadoop.</p>
+######################################################################################################
+
+<a href="/assets/images/{{page.id}}/sec_apache_knox_overview.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_apache_knox_overview.png" alt="apache knox overview"/></a>
+
+<p><b>Authorization</b></p>
+
+######################################################################################################
+<p>Ranger manages access control through a user interface that ensures consistent policy administration across Hadoop data access components. Security administrators can define security policies at the database, table, column, and file levels, and can administer permissions for specific LDAP-based groups or individual users. Rules based on dynamic conditions such as time or geolocation can also be added to an existing policy rule. The Ranger authorization model is pluggable and can be easily extended to any data source using a service-based definition.</p>
+
+<p>Ranger управляет контролем доступа через пользовательский интерфейс, который обеспечивает согласованное администрирование политик для компонентов доступа к данным Hadoop. Администраторы безопасности могут определять политики безопасности на уровне базы данных, таблицы, столбца и файла, а также могут управлять разрешениями для определенных групп на основе LDAP или отдельных пользователей. Правила, основанные на динамических условиях, таких как время или геолокация, также могут быть добавлены в существующее правило политики. Модель авторизации Ranger является подключаемой и может быть легко расширена на любой источник данных с помощью определения на основе сервиса.</p>
+######################################################################################################
+
+<a href="/assets/images/{{page.id}}/sec_usergroup_sync_ranger.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_usergroup_sync_ranger.png" alt="usergroup sync ranger"/></a>
+
+######################################################################################################
+<p>Administrators can use Ranger to define a centralized security policy for the following Hadoop components:</p>
+
+<p>Администраторы могут использовать Ranger для определения централизованной политики безопасности для следующих компонентов Hadoop:</p>
+
+######################################################################################################
+
+<ul>
+  <li>HDFS</li>
+  <li>YARN</li>
+  <li>Hive</li>
+  <li>HBase</li>
+  <li>Storm</li>
+  <li>Knox</li>
+  <li>Solr</li>
+  <li>Kafka</li>
+</ul>
+
+######################################################################################################
+
+<p>Ranger works with standard authorization APIs in each Hadoop component and can enforce centrally administered policies for any method used to access the Data Lake.</p>
+
+<p>Ranger работает со стандартными API авторизации в каждом компоненте Hadoop и может применять централизованно управляемые политики для любого метода, используемого для доступа к ata Lake</p>
+
+######################################################################################################
+
+<a href="/assets/images/{{page.id}}/sec_ranger_policy_definition.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_ranger_policy_definition.png" alt="ranger policy definition"/></a>
+
+######################################################################################################
+<p>Ranger provides administrators with the deep visibility into the security administration process that is required for auditing. The combination of a rich user interface and deep audit visibility makes Ranger highly intuitive to use, enhancing productivity for security administrators.</p>
+
+<p>Ranger предоставляет администраторам глубокое представление о процессе администрирования безопасности, необходимом для аудита. Сочетание богатого пользовательского интерфейса и глубокого контроля делает Ranger чрезвычайно интуитивно понятным в использовании, повышая производительность для администраторов безопасности.</p>
+
+######################################################################################################
+
+<a href="/assets/images/{{page.id}}/sec_ranger_policy_overview.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/sec_ranger_policy_overview.png" alt="sec_ranger_policy_overview"/></a>
+
+<p><b>Audit</b></p>
+
+######################################################################################################
+<p>As customers deploy Hadoop into corporate data and processing environments, metadata and data governance must be vital parts of any enterprise-ready data lake. For this reason, Hortonworks established the Data Governance Initiative (DGI) with Aetna, Merck, Target, and SAS to introduce a common approach to Hadoop data governance into the open source community. This initiative has since evolved into a new open source project named Apache Atlas. Apache Atlas is a set of core governance services that enables enterprises to meet their compliance requirements within Hadoop, while also enabling integration with the complete enterprise data ecosystem. These services include:</p>
+
+<p>Поскольку клиенты внедряют Hadoop в корпоративные среды обработки данных и обработки, метаданные и управление данными должны быть жизненно важными частями любого корпоративного озера данных. По этой причине Hortonworks совместно с Aetna, Merck, Target и SAS разработали Инициативу по управлению данными (DGI)(Data Governance Initiative (DGI)), чтобы внедрить общий подход к управлению данными Hadoop в сообществе открытого исходного кода. Эта инициатива с тех пор превратилась в новый проект с открытым исходным кодом под названием Apache Atlas. Apache Atlas - это набор базовых сервисов управления, которые позволяют предприятиям выполнять свои требования соответствия в Hadoop, а также обеспечивают интеграцию с полной экосистемой корпоративных данных. Эти услуги включают в себя:</p>
+######################################################################################################
+<ul>
+  <li>Dataset search and lineage operations</li>
+  <li>Metadata-driven data access control</li>
+  <li>Indexed and searchable centralized auditing</li>
+  <li>Data lifecycle management from ingestion to disposition</li>
+  <li>etadata interchange with other tools</li>
+</ul>
+######################################################################################################
+<p>Ranger also provides a centralized framework for collecting access audit history and reporting this data, including filtering on various parameters. HDP enhances audit information that is captured within different components within Hadoop and provides insights through this centralized reporting capability.</p>
+
+<p>Ranger также предоставляет централизованную платформу для сбора истории аудита доступа и представления этих данных, включая фильтрацию по различным параметрам. HDP расширяет аудиторскую информацию, которая собирается в различных компонентах Hadoop, и обеспечивает понимание с помощью этой возможности централизованной отчетности.</p>
+######################################################################################################
+
+<p><b>Data Protection</b></p>
+######################################################################################################
+<p>The data protection feature makes data unreadable both in transit over the network and at rest on a disk. HDP satisfies security and compliance requirements by using both transparent data encryption (TDE) to encrypt data for HDFS files, along with a Ranger-embedded open source Hadoop key management store (KMS). Ranger enables security administrators to manage keys and authorization policies for KMS. Hortonworks is also working extensively with its encryption partners to integrate HDFS encryption with enterprise-grade key management frameworks.</p>
+
+<p>Функция защиты данных делает data unreadable как при передаче по сети, так и в состоянии покоя на диске. HDP удовлетворяет требованиям безопасности и соответствия, используя прозрачное шифрование данных (TDE) для шифрования данных для файлов HDFS, а также встроенное хранилище ключей Hadoop с открытым исходным кодом Ranger (KMS). Ranger позволяет администраторам безопасности управлять ключами и политиками авторизации для KMS. Hortonworks также активно сотрудничает со своими партнерами по шифрованию для интеграции шифрования HDFS с инфраструктурой управления ключами корпоративного уровня.</p>
+
+<p>Encryption in HDFS, combined with KMS access policies maintained by Ranger, prevents rogue Linux or Hadoop administrators from accessing data, and supports segregation of duties for both data access and encryption.</p>
+
+######################################################################################################
+
+<p>Youtube channel (Reverse Engineer source code) ZooKeeper :: for Enterprise Architect's powerful code engineering features is the ability to Reverse Engineer source code into a UML model.<a href="https://www.youtube.com/playlist?list=PLrTrFnOkIFb3vwhhPF8ShsS8kNsn8emtt">(Reverse Engineer source code) ZooKeeper : </a></p>
+
+<p>код hortonworks : : zookeeper-release-HDP-3.1.4.2-2-tag <a href="https://github.com/gridgentoo/zookeeper-release">zookeeper-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>код hortonworks : : kafka-release-HDP-3.1.4.2-2 <a href="https://github.com/gridgentoo/kafka-release">kafka-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>код hortonworks : : storm-release-HDP-3.1.4.2-2 <a href="https://github.com/gridgentoo/storm-release">storm-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>(Reverse Engineer source code) ZooKeeper :: for Architect: <a href="https://drive.google.com/drive/folders/1kS1VMu1yWk70R15A4g2jWfECHfnxIpRa">(Reverse Engineer source code)zookeeper-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p><strong>Reference</strong></p>
+<ul>
+	<li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>
