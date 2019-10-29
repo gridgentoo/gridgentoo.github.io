@@ -1,0 +1,123 @@
+---
+layout: default
+title:  "Apache Hive 3 architectural overview"
+date:   2019-10-29 01:11:00 +0200
+published: 2019-10-29 01:11:00 +0200
+comments: true
+categories: development
+tags: [Apache Hive 3, Hive 3, HDP, Hortonworks, Hortonworks Data Platform, Kerberos, Ambari, Hadoop cluster, Apache Ranger, Apache Knox Gateway, Ranger, Knox, Hadoop REST API, REST API, Apache Atlas, Atlas, ZooKeeper, ZooKeeper Cluster, in-memory]
+github: "https://github.com/gridgentoo/zookeeper-releasee"
+---
+
+<p>Understanding Apache Hive 3 major design changes, such as default ACID transaction processing and support for only the thin hive client, can help you use new features to address the growing needs of enterprise data warehouse systems.</p>
+<!--more-->
+<p>Понимание основных изменений в дизайне Apache Hive 3, таких как обработка транзакций ACID по умолчанию и поддержка только тонкого клиента Hive, может помочь вам использовать новые функции для удовлетворения растущих потребностей корпоративных хранилищ данных..</p>
+
+<p><b>Execution engine changes</b></p>
+
+######################################################################################################
+<p>Apache Tez replaces MapReduce as the default Hive execution engine. MapReduce is no longer supported, and Tez stability is proven. With expressions of directed acyclic graphs (DAGs) and data transfer primitives, execution of Hive queries under Tez improves performance. SQL queries you submit to Hive are executed as follows:</p>
+
+<p>Apache Tez заменяет MapReduce в качестве механизма исполнения Hive по умолчанию. MapReduce больше не поддерживается, а стабильность Tez доказана. Благодаря выражениям направленных ациклических графов (DAG) и примитивам передачи данных выполнение запросов Hive в Tez повышает производительность. SQL-запросы, которые вы отправляете в Hive, выполняются следующим образом:</p>
+
+######################################################################################################
+
+<ul>
+  <li>Hive compiles the query.</li>
+  <li>Tez executes the query.</li>
+  <li>YARN allocates resources for applications across the cluster and enables authorization for Hive jobs in YARN queues.</li>
+  <li>Hive updates the data in HDFS or the Hive warehouse, depending on the table type.</li>
+  <li>Hive returns query results over a JDBC connection.</li>
+</ul>
+
+######################################################################################################
+
+<ul>
+  <li>Hive компилирует запрос..</li>
+  <li>Tez выполняет запрос.</li>
+  <li>YARN распределяет ресурсы для приложений в кластере и обеспечивает авторизацию для заданий Hive в очередях YARN.</li>
+  <li>Hive обновляет данные в HDFS или хранилище Hive в зависимости от типа таблицы.</li>
+  <li>Hive возвращает результаты запроса по соединению JDBC.</li>
+</ul>
+
+######################################################################################################
+
+<p>A simplified view of this process is shown in the following figure:</p>
+<p>Упрощенный вид этого процесса показан на следующем рисунке:</p>
+
+<a href="/assets/images/{{page.id}}/hive-sql-query-execution-process.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/hive-sql-query-execution-process.png" alt="hive sql query execution process"/></a>
+######################################################################################################
+<p>If a legacy script or application specifies MapReduce for execution, an exception occurs. Most user-defined functions (UDFs) require no change to execute on Tez instead of MapReduce. </p>
+
+<p>Если legacy script or application указывает MapReduce для выполнения, возникает исключение. Большинство пользовательских функций (UDF) не требуют никаких изменений для выполнения в Tez вместо MapReduce.</p>
+
+######################################################################################################
+
+<p><b>Design changes that affect security</b></p>
+
+<p>The following Hive 3 architectural changes provide improved security: </p>
+
+<p>Следующие изменения архитектуры Hive 3 обеспечивают повышенную безопасность:</p>
+######################################################################################################
+<ul>
+  <li>Tightly controlled file system and computer memory resources, replacing flexible boundaries: Definitive boundaries increase predictability. Greater file system control improves security.</li>
+  <li> Optimized workloads in shared files and YARN containers.</li>
+</ul>
+######################################################################################################
+<ul>
+  <li>Строго контролируемые ресурсы файловой системы и памяти компьютера, заменяющие гибкие границы: четкие границы повышают предсказуемость. Большой контроль над файловой системой повышает безопасность..</li>
+  <li>Оптимизированные рабочие нагрузки в общих файлах и контейнерах YARN.</li>
+</ul>
+######################################################################################################
+
+<p>By default, the HDP 3.0 Ambari installation adds Apache Ranger security services. The major authorization model in Hive is Ranger. This model permits only Hive to access HDFS. Hive enforces access controls specified in Ranger. This model offers stronger security than other security schemes and more flexibility in managing policies. </p>
+
+<p>По умолчанию при установке HDP 3.0 Ambari добавляются службы безопасности Apache Ranger. Основной моделью авторизации в Hive является Ranger. Эта модель разрешает только Hive доступ к HDFS. Hive обеспечивает контроль доступа, указанный в Ranger. Эта модель обеспечивает более высокую безопасность, чем другие схемы безопасности, и большую гибкость в управлении политиками.</p>
+######################################################################################################
+
+<p>If you do not enable the Ranger security service, or other security, by default Hive uses storage-based authorization (SBA) based on user impersonation.</p>
+
+<p>Если вы не включите службу безопасности Ranger или другую защиту, по умолчанию Hive будет использовать авторизацию на основе хранилища (SBA) </p>
+######################################################################################################
+
+<p><b>HDFS permission changes</b></p>
+
+<p>In HDP 3.0, SBA relies heavily on HDFS access control lists (ACLs). ACLs are an extension to the permissions system in HDFS. HDP 3.0 turns on ACLs in HDFS by default, providing you with the following advantages: </p>
+
+<p>В HDP 3.0 SBA в значительной степени опирается на списки контроля доступа HDFS (ACL). ACL являются расширением системы разрешений в HDFS. HDP 3.0 по умолчанию включает ACL в HDFS, предоставляя вам следующие преимущества:</p>
+
+######################################################################################################
+<ul>
+  <li>Increased flexibility when giving multiple groups and users specific permissions.</li>
+  <li>Convenient application of permissions to a directory tree rather than by individual files.</li>
+</ul>
+######################################################################################################
+<ul>
+  <li>Повышенная гибкость при назначении нескольким группам и пользователям определенных разрешений..</li>
+  <li>Удобное применение разрешений к дереву каталогов, а не к отдельным файлам.</li>
+</ul>
+
+######################################################################################################
+<p><b>Transaction processing changes</b></p>
+######################################################################################################
+<p>You can deploy new Hive application types by taking advantage of the following improvements in transaction processing:</p>
+<p>Вы можете развернуть новые типы приложений Hive, воспользовавшись следующими улучшениями в обработке транзакций:</p>
+######################################################################################################
+
+
+<p>Youtube channel (Reverse Engineer source code) ZooKeeper :: for Enterprise Architect's powerful code engineering features is the ability to Reverse Engineer source code into a UML model.<a href="https://www.youtube.com/playlist?list=PLrTrFnOkIFb3vwhhPF8ShsS8kNsn8emtt">(Reverse Engineer source code) ZooKeeper : </a></p>
+
+<p>код hortonworks : : zookeeper-release-HDP-3.1.4.2-2-tag <a href="https://github.com/gridgentoo/zookeeper-release">zookeeper-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>код hortonworks : : kafka-release-HDP-3.1.4.2-2 <a href="https://github.com/gridgentoo/kafka-release">kafka-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>код hortonworks : : storm-release-HDP-3.1.4.2-2 <a href="https://github.com/gridgentoo/storm-release">storm-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p>(Reverse Engineer source code) ZooKeeper :: for Architect: <a href="https://drive.google.com/drive/folders/1kS1VMu1yWk70R15A4g2jWfECHfnxIpRa">(Reverse Engineer source code)zookeeper-release-HDP-3.1.4.2-2-tag</a></p>
+
+<p><strong>Reference</strong></p>
+<ul>
+  <li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>
