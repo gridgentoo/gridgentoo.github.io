@@ -1,0 +1,400 @@
+---
+layout: default
+title:  "Secure CockroachDB Cluster on Ubuntu"
+date:   2019-10-29 01:11:00 +0200
+published: 2019-10-29 01:11:00 +0200
+comments: true
+categories: development
+tags: [CockroachDB Cluster, CockroachDB, HDP, Hortonworks, Hortonworks Data Platform, Kerberos, Ambari, Hadoop cluster, Apache Ranger, Apache Knox Gateway, Ranger, Knox, Hadoop REST API, REST API, Apache Atlas, Atlas, ZooKeeper, ZooKeeper Cluster, in-memory]
+github: "https://github.com/gridgentoo/cockroach"
+---
+
+<p>CockroachDB is a cloud-native SQL database for building global, scalable cloud services. CockroachDB is an open source and cloud-native SQL database developed by the CockroachLabs. It's a distributed SQL database built on the transactional and key-value store. CockroachDB is scalable SQL database which has been compared to Google Spanner database. It's based on the PostgreSQL protocol wire and production ready.</p>
+
+<!--more-->
+<p>In this tutorial, we will show you how to set up the Secure CockroachDB Cluster on Ubuntu 18.04. You will learn how to set up the secure cluster, access the CockroachDB admin dashboard, create a new user on CockroachDB, create and show database on CockroachDB.</p>
+
+
+######################################################################################################
+
+<h2>Prerequisites</h2>
+
+<p>In order to run the CockroachDB Cluster, we need multiple servers. And we will be using three Ubuntu 18.04 servers with the detail hostname and IP address as below.</p>
+
+<ul>
+  <li>node1   10.5.5.21</li>
+  <li>node2   10.5.5.22</li>
+  <li>node3   10.5.5.23</li>
+</ul>
+
+<h2>What we will do?</h2>
+
+<ul>
+  <li>Setup NTP Server with Chronysystemctl restart chrony</li>
+  <li>systemctl enable chrony</li>
+  <li>Download and Install CockroachDB</li>
+  <li>Create Certificates</li>
+  <li>Initialize CockroachDB Cluster</li>
+  <li>Add Node to the CockroachDB Cluster</li>
+  <li>Testing</li>
+</ul>
+
+<h2>Setup NTP Server with Chrony</h2>
+
+<p>Firstly, we must keep the time between servers on the cluster synchronized. So, we need to install the NTP package on all servers. And for this guide, we will be using chrony.</p>
+
+<p>Install chrony package to all servers using the following command.</p>
+
+{% highlight shell %}
+sudo apt install chrony -y
+{% endhighlight %}
+
+<p>Once the installation is complete, goto '/etc/chrony/' configuration directory and edit the file 'chrony.conf'.</p>
+
+{% highlight shell %}
+cd /etc/chrony/
+vim chrony.conf
+{% endhighlight %}
+
+<p>Delete the default NTP pool and replace with your own country pool.</p>
+
+{% highlight shell %}
+pool 0.id.pool.ntp.org iburst maxsources 4
+pool 1.id.pool.ntp.org iburst maxsources 1
+pool 2.id.pool.ntp.org iburst maxsources 1
+pool 3.id.pool.ntp.org iburst maxsources 2
+{% endhighlight %}
+
+<p>Save and close.</p>
+
+<p>Now restart the chrony service and then add chrony to the startup service.</p>
+
+{% highlight shell %}
+systemctl restart chrony
+systemctl enable chrony
+{% endhighlight %}
+
+<p>As a result, the time between servers will be synchronized to the same NTP pool servers.</p>
+
+<a href="/assets/images/{{page.id}}/1.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/1.png" alt="rs.initiate"/></a>
+
+<h2>Download and Install CockroachDB</h2>
+
+<p>In this step, we will download and install the CockroachDB on all servers. So, run all commands on all of your cluster servers.</p>
+
+<p>Create a new directory called 'binary' and got into it.</p>
+
+{% highlight shell %}
+mkdir -p binary; cd binary
+{% endhighlight %}
+
+<p>Download the compressed cockroachdb binary file for Linux and extract it.</p>
+
+{% highlight shell %}
+wget https://binaries.cockroachdb.com/cockroach-latest.linux-amd64.tgz
+tar -xvzf cockroach-latest.linux-amd64.tgz
+{% endhighlight %}
+
+<p>Now copy the 'cockroach' binary file to the '/etc/local/bin' directory.</p>
+
+{% highlight shell %}
+cp cockroach-*/cockroach /usr/local/bin/
+{% endhighlight %}
+
+<p>After that, you can run the 'cockroach' command and explore the basic command for help, check the version etc.</p>
+
+{% highlight shell %}
+cockroach version
+{% endhighlight %}
+
+<p>The CockroachDB has been installed on all servers.</p>
+
+<a href="/assets/images/{{page.id}}/2.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/2.png" alt="CockroachDB"/></a>
+
+<h2>Create Certificates</h2>
+
+<p>Now we're going to generate some certificates to secure the CockrouchDB Cluster. We can use OpenSSL or the cockroach command line for generating certificate files.</p>
+
+<p>We will generate the CA certificate and key, and the generate certificate for user root and certificate for each node on the cluster.</p>
+
+<p>Create the certificate directory '~/.cockroach-certs' and the environment variable for it.</p>
+
+{% highlight shell %}
+mkdir -p ${HOME}/.cockroach-certs/
+export COCKROACH_CERTS_DIR='${HOME}/.cockroach-certs/'
+{% endhighlight %}
+
+<p><b>Create CA and Copy to All Nodes</b></p>
+
+<p>On the 'node1' server, create the certificate authority using the cockroach command below.</p>
+
+{% highlight shell %}
+cockroach cert create-ca \
+ --certs-dir=$COCKROACH_CERTS_DIR \
+ --ca-key=$COCKROACH_CERTS_DIR/ca.key
+{% endhighlight %}
+
+<p>And you will get the 'ca.key' and 'ca.crt' on the '~/.cockroach-certs' directory.</p>
+
+<a href="/assets/images/{{page.id}}/4.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/4.png" alt="cockroach-certs"/></a>
+
+<p>After that, copy the ca certificate and key to all servers using the scp command as below.</p>
+
+<p>Copy to the 'node2' server.</p>
+
+{% highlight shell %}
+scp ~/.cockroach-certs/ca.crt ~/.cockroach-certs/ca.key root@10.5.5.22:~/.cockroach-certs/
+{% endhighlight %}
+
+<p>Copy to the 'node3' server.</p>
+
+{% highlight shell %}
+scp ~/.cockroach-certs/ca.crt ~/.cockroach-certs/ca.key root@10.5.5.23:~/.cockroach-certs/
+{% endhighlight %}
+
+<p>Now make sure the CA certificate and key are uploaded to all host servers.</p>
+
+<a href="/assets/images/{{page.id}}/5.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/5.png" alt="cockroach-certs"/></a>
+
+<p><b>Create Client Certificates</b></p>
+
+<p>After creating the certificate authority, we need to generate the client certificate. The client certificate will be used to secure communication between the built-in SQL shell and the cluster.</p>
+
+<p>Generate the client certificate on all servers using the following cockroach command.</p>
+
+{% highlight shell %}
+cockroach cert create-client \
+ root \
+ --certs-dir=$COCKROACH_CERTS_DIR \
+ --ca-key=$COCKROACH_CERTS_DIR/ca.key
+{% endhighlight %}
+
+<p>And you will get client certificates for user root 'client.root.crt' and 'client.root.key'.</p>
+
+<a href="/assets/images/{{page.id}}/3.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/3.png" alt="cockroach-certs"/></a>
+
+
+<p><b>Create Server Certificates</b></p>
+
+<p>Server certificates will be used to secure communication between servers on the CockroachDB cluster. And in order to join the secure cluster, you need to generate server certificates for each server.</p>
+
+<p>On the 'node1', create the server certificate using the following command.</p>
+
+{% highlight shell %}
+cockroach cert create-node \
+ localhost \
+ $(hostname) \
+ 10.5.5.21 \
+ --certs-dir=$COCKROACH_CERTS_DIR \
+ --ca-key=$COCKROACH_CERTS_DIR/ca.key
+{% endhighlight %}
+
+<p>Change the IP address with your own.</p>
+
+<a href="/assets/images/{{page.id}}/6.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/6.png" alt="cockroach-certs"/></a>
+
+<p>On the 'node2', create the server certificate using the following command.</p>
+
+{% highlight shell %}
+cockroach cert create-node \
+ localhost \
+ $(hostname) \
+ 10.5.5.22 \
+ --certs-dir=$COCKROACH_CERTS_DIR \
+ --ca-key=$COCKROACH_CERTS_DIR/ca.key
+{% endhighlight %}
+
+<p>Change the IP address with your own.</p>
+
+<a href="/assets/images/{{page.id}}/7.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/7.png" alt="cockroach-certs"/></a>
+
+<p>On the 'node3', create the server certificate using the following command.</p>
+
+{% highlight shell %}
+cockroach cert create-node \
+ localhost \
+ $(hostname) \
+ 10.5.5.23 \
+ --certs-dir=$COCKROACH_CERTS_DIR \
+ --ca-key=$COCKROACH_CERTS_DIR/ca.key
+{% endhighlight %}
+
+<p>Change the IP address with your ow</p>
+
+<p>Now you will get server certificates 'node.crt' and 'node.key' on the '~/.cockroach-certs' directory.</p>
+
+<h2>Start Secure CockroachDB Cluster</h2>
+
+<p>After creating some SSL certificates, we will initialize the Secure CockroachDB Cluster from the 'node1' server.</p>
+
+<p>Run the following command on the 'node1' server.</p>
+
+{% highlight shell %}
+cockroach start \
+ --background --certs-dir=$COCKROACH_CERTS_DIR \
+ --advertise-host=10.5.5.21 --listen-addr=10.5.5.21
+{% endhighlight %}
+
+<p>Ensure there is no error.</p>
+
+<p>After that, check the cluster node status by running the cockroach command below.</p>
+
+{% highlight shell %}
+cockroach node status --host=10.5.5.21
+{% endhighlight %}
+
+<p>You will get the node1 with IP address 10.5.5.21 is up and running with CockroachDB v2.1.6.</p>
+
+<a href="/assets/images/{{page.id}}/8.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/8.png" alt="cockroach node status"/></a>
+
+<h2>Add Node to the Cluster</h2>
+
+<p>Next, we will add the 'node2' and 'node3' to the CockroachDB secure cluster.</p>
+
+<p>Ensure the CA and server certificate is on the ~/.cockroach-certs directory.</p>
+
+{% highlight shell %}
+ls -lah ~/.cockroah-certs/
+{% endhighlight %}
+
+<p>Now run the following command to add the 'node2' with IP address 10.5.5.22. Add it to the CockroachDB cluster.</p>
+
+{% highlight shell %}
+cockroach start \
+ --background --certs-dir=$COCKROACH_CERTS_DIR \
+ --advertise-host=10.5.5.22 --listen-addr=10.5.5.22 \
+ --join=10.5.5.21:26257
+{% endhighlight %}
+
+<p>Once it's complete, go to the 'node3' and run the following command.</p>
+
+{% highlight shell %}
+cockroach start \
+ --background --certs-dir=$COCKROACH_CERTS_DIR \
+ --advertise-host=10.5.5.23 --listen-addr=10.5.5.23 \
+ --join=10.5.5.21:26257
+{% endhighlight %}
+
+<p>Change the IP address with your own.</p>
+
+<p>Now the 'node2' and 'node3' has been added to the Secure CockroachDB Cluster. Check it from the 'node1' server using the following command.</p>
+
+{% highlight shell %}
+cockroach node status --host=10.5.5.21
+{% endhighlight %}
+
+<p>And you will get three different servers is up and running the cockroach v2.1.6.</p>
+
+<a href="/assets/images/{{page.id}}/9.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/9.png" alt="cockroach node status"/></a>
+
+<h2>Testing</h2>
+
+<p>For this last step, we will test our CockroachDB Secure Cluster installation by accessing the admin dashboard and testing the database replication between servers.</p>
+
+<p>Testing CockroachDB Dashboard</p>
+
+<p>The CockroachDB provides beautiful dashboard UI to monitor the cluster. Open your web browser and type the server IP address followed by the port 8080.</p>
+
+{% highlight shell %}
+https://10.5.5.21:8080/
+{% endhighlight %}
+
+<p>And you will get the CockroachDB login page as below.</p>
+
+<a href="/assets/images/{{page.id}}/10.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/10.png" alt="cockroach node status"/></a>
+
+<p>In order to log in to the dashboard, we need to create a user on the CockroachDB database.</p>
+
+<p>Back to your 'node1' terminal and log in to the cockroachdb SQL shell using the following command.</p>
+
+{% highlight shell %}
+cockroach sql --certs-dir=$COCKROACH_CERTS_DIR \
+ --host=10.5.5.21
+{% endhighlight %}
+
+<p>Now create a new user called 'xakep' with password 'xakep-labs123@#' using the query below.</p>
+
+{% highlight shell %}
+CREATE USER xakep WITH PASSWORD 'xakep-labs123@#';
+{% endhighlight %}
+
+<p>Type '\q' to exit from the CockroachDB SQL shell.</p>
+
+{% highlight shell %}
+show users;
+{% endhighlight %}
+
+<p>Now back to the web browser and type the user 'xakep' with password 'xakep-labs123@#' on the login page and click the Login button.</p>
+
+<p>And you will get the CockroachDB admin dashboard as below.</p>
+
+<a href="/assets/images/{{page.id}}/13.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/13.png" alt="cockroach node status"/></a>
+
+<p><b>Testing Database Replication</b></p>
+
+<p>Now we're going to test the database replication between servers on the CockroachDB Cluster by creating the database on the 'node1' and checking the database from 'node2' or 'node3'.</p>
+
+<p>On the 'node1', access the CockroachDB SQL shell using the following command.</p>
+
+{% highlight shell %}
+cockroach sql --certs-dir=$COCKROACH_CERTS_DIR \
+ --host=10.5.5.21
+{% endhighlight %}
+
+Create two databases 'xakepdb' and 'xakepdb2' using the queries below.
+
+{% highlight shell %}
+create database xakepdb;
+create database xakepdb2;
+{% endhighlight %}
+
+<p>Now print database list and make sure you get two databases that we just created.</p> 
+
+{% highlight shell %}
+show databases;
+{% endhighlight %} 
+
+<p>Next, login to the 'node2' server and access the CockroachDB SQL shell using the following command.</p>
+
+{% highlight shell %}
+cockroach sql --certs-dir=$COCKROACH_CERTS_DIR \
+ --host=10.5.5.22
+{% endhighlight %}
+
+<p>Check the database list.</p>
+
+{% highlight shell %}
+show databases;
+{% endhighlight %}
+
+<p>And you will get 'xakepdb' and 'xakepdb2' has been replicated to the 'node2' server.</p>
+
+<p>And finally, the installation and configuration of Secure CockroachDB Cluster using Ubuntu 18.04 has been completed successfully.</p>
+##############################################################################################################
+
+<p><strong>Reference</strong></p>
+<ul>
+  <li>File Integrity Monitoring<a href="https://osquery.readthedocs.io/">(File Integrity Monitoring)</a></li>
+</ul>
