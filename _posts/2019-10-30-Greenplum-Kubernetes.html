@@ -1,0 +1,271 @@
+---
+layout: default
+title:  "Greenplum for Kubernetes"
+date:   2019-10-30 01:11:00 +0200
+published: 2019-10-30 01:11:00 +0200
+comments: true
+categories: development
+tags: [Greenplum, Greenplum cluster, HDP, Hortonworks, Hortonworks Data Platform, Kerberos, Ambari, Hadoop cluster, Apache Ranger, Apache Knox Gateway, Ranger, Knox, Hadoop REST API, REST API, Apache Atlas, Atlas, ZooKeeper, ZooKeeper Cluster, in-memory]
+github: "https://github.com/gridgentoo/gpdb"
+---
+
+<p>This topic describes how to install Pivotal Greenplum for Kubernetes. The installation process involves loading the Greenplum for Kubernetes container images into your container registry, and then using the helm package manager to install the Greenplum Operator resource in Kubernetes. After the Greenplum Operator resource is available, you can interact with it to deploy and manage Greenplum clusters in Kubernetes.</p>
+
+<!--more-->
+
+<h2>Prerequisites</h2>
+<p>Before you install Greenplum for Kubernetes, ensure that you have installed the required software and prepared your Kubernetes environment as described in Prerequisites.</p>
+
+<h2>Procedure</h2>
+
+<p>Follow these steps to download and install the Greenplum for Kubernetes container images, and install the Greenplum Operator resource.</p>
+
+<p><b>1. </b>Download the Greenplum for Kubernetes software from Pivotal Network. The download file has the name:</p>
+
+{% highlight shell %}
+https://network.pivotal.io/products/greenplum-for-kubernetes
+{% endhighlight %}
+
+{% highlight shell %}
+greenplum-for-kubernetes-<version>.tar.gz
+{% endhighlight %}
+
+<p>Go to the directory where you downloaded Greenplum for Kubernetes, and unpack the downloaded software. For example:</p>
+
+{% highlight shell %}
+cd ~/Downloads
+tar xzf greenplum-for-kubernetes-*.tar.gz
+{% endhighlight %}
+
+<p>The above command unpacks the distribution into a new directory named </p>
+
+{% highlight shell %}
+greenplum-for-kubernetes-<version>
+{% endhighlight %}
+
+<p><b>3. </b>Go into the new <b>greenplum-for-kubernetes-"version"</b> directory:</p>
+
+{% highlight shell %}
+cd ./greenplum-for-kubernetes-*
+{% endhighlight %}
+
+<p><b>4. </b>For Minikube deployments only, ensure that the local docker daemon interacts with the Minikube docker container registry:</p>
+
+{% highlight shell %}
+eval $(minikube docker-env)
+{% endhighlight %}
+
+<p><b>Note: </b>To undo this docker setting in the current shell, run <b>eval "$(docker-machine env -u)"</b>.</p>
+
+<p><b>5. </b>Load the Greenplum for Kubernetes Docker image to the local Docker registry:</p>
+
+{% highlight shell %}
+docker load -i ./images/greenplum-for-kubernetes
+{% endhighlight %}
+
+{% highlight shell %}
+644879075e24: Loading layer [==================================================>]  117.9MB/117.9MB
+d7ff1dc646ba: Loading layer [==================================================>]  15.87kB/15.87kB
+686245e78935: Loading layer [==================================================>]  14.85kB/14.85kB
+d73dd9e65295: Loading layer [==================================================>]  5.632kB/5.632kB
+2de391e51d73: Loading layer [==================================================>]  3.072kB/3.072kB
+4605c0a3f29d: Loading layer [==================================================>]  633.4MB/633.4MB
+c8d909e84bbf: Loading layer [==================================================>]  1.682MB/1.682MB
+7e66ff617b4c: Loading layer [==================================================>]  4.956MB/4.956MB
+db9d4b8567ab: Loading layer [==================================================>]  17.92kB/17.92kB
+223fe4d67f77: Loading layer [==================================================>]  3.584kB/3.584kB
+2e75b028b124: Loading layer [==================================================>]  43.04MB/43.04MB
+1a7d923392f7: Loading layer [==================================================>]   2.56kB/2.56kB
+2b9cc11f6cfc: Loading layer [==================================================>]  176.6kB/176.6kB
+Loaded image: greenplum-for-kubernetes:v0.6.0
+{% endhighlight %}
+
+<p><b>6. </b>Load the Greenplum Operator Docker image to the Docker registry:</p>
+
+{% highlight shell %}
+docker load -i ./images/greenplum-operator
+{% endhighlight %}
+
+{% highlight shell %}
+e256c39291c9: Loading layer [==================================================>]  79.69MB/79.69MB
+2250a2616dfd: Loading layer [==================================================>]  352.3kB/352.3kB
+b1e0c363fd12: Loading layer [==================================================>]  37.48MB/37.48MB
+Loaded image: greenplum-operator:v0.6.0
+{% endhighlight %}
+
+<p><b>7. </b>Verify that both Docker images are now available:</p>
+
+{% highlight shell %}
+docker images "greenplum-*"
+{% endhighlight %}
+
+{% highlight shell %}
+REPOSITORY                 TAG          IMAGE ID            CREATED             SIZE
+greenplum-operator         v0.6.0       1f2299e10960        28 minutes ago      232MB
+greenplum-for-kubernetes   v0.6.0       1d5b86baf556        30 minutes ago      763MB
+{% endhighlight %}
+
+<p><b>8. </b>For PKS or GCP deployments only:</p>
+
+<p><b>a. </b>If you want to push the Greenplum for Kubernetes docker images to a different container registry, set the project name and image repo name and then use Docker to push the images. For example, to push the images to Google Cloud Registry using the current Google Cloud project name:</p>
+
+{% highlight shell %}
+$ gcloud auth configure-docker
+
+$ PROJECT=$(gcloud config list core/project --format='value(core.project)')
+$ IMAGE_REPO="gcr.io/${PROJECT}"
+
+$ GREENPLUM_IMAGE_NAME="${IMAGE_REPO}/greenplum-for-kubernetes:$(cat ./images/greenplum-for-kubernetes-tag)"
+$ docker tag $(cat ./images/greenplum-for-kubernetes-id) ${GREENPLUM_IMAGE_NAME}
+$ docker push ${GREENPLUM_IMAGE_NAME}
+
+$ OPERATOR_IMAGE_NAME="${IMAGE_REPO}/greenplum-operator:$(cat ./images/greenplum-operator-tag)"
+$ docker tag $(cat ./images/greenplum-operator-id) ${OPERATOR_IMAGE_NAME}
+$ docker push ${OPERATOR_IMAGE_NAME}
+{% endhighlight %}
+
+<p><b>b. </b>Copy a Kubernetes service account key (a key.json file for an account that has read access to Google Cloud Registry) to the operator subdirectory. For example:</p>
+
+{% highlight shell %}
+cp ~/key.json ./operator/key.json
+{% endhighlight %}
+
+<p><b>c. </b>Create a new YAML file in the <b>workspace</b> subdirectory. For example:</p>
+
+{% highlight shell %}
+touch workspace/operator-values-overrides.yaml
+{% endhighlight %}
+
+<p><b>d. </b>Add the following line to the new YAML file to identify the <b>key.json</b> file to use. For example:</p>
+
+{% highlight shell %}
+dockerRegistryKeyJson: key.json
+{% endhighlight %}
+
+<p><b>e. </b>If you pushed the Greenplum Operator and Greenplum Database Docker images to a container registry, add two additional lines to the configuration file to indicate the registry where you pushed the images. For example, if you are using Google Cloud Registry with a project named “gp-kubernetes”, you would add the properties:</p>
+
+{% highlight shell %}
+operatorImageRepository: gcr.io/gp-kubernetes/greenplum-operator
+greenplumImageRepository: gcr.io/gp-kubernetes/greenplum-for-kubernetes
+{% endhighlight %}
+
+<p><b>Note: </b>If you did not tag the images with a container registry prefix or project name (for example, if you are using your own local Minikube deployment), then you can skip this step.</p>
+
+<p><b>9. </b>Ensure that <b>helm</b> has the required Kubernetes service account privileges:</p>
+
+{% highlight shell %}
+kubectl create -f ./initialize_helm_rbac.yaml
+{% endhighlight %}
+
+{% highlight shell %}
+serviceaccount "tiller" created
+clusterrolebinding.rbac.authorization.k8s.io "tiller" created
+{% endhighlight %}
+
+<p>This sets the necessary privileges for <b>helm</b> with a service account named <b>tiller</b>.</p>
+
+<p><b>10. </b>Initialize and upgrade <b>helm</b>:</p>
+
+{% highlight shell %}
+helm init --wait --service-account tiller --upgrade
+{% endhighlight %}
+
+{% highlight shell %}
+$HELM_HOME has been configured at /<path>/.helm.
+
+Tiller (the Helm server-side component) has been upgraded to the current version.
+Happy Helming!
+{% endhighlight %}
+
+<p><b>11. </b>Use <b>helm</b> to create a new Greenplum Operator release, specifying the YAML configuration file if you created one. For example, to create a new release with the name “greenplum-operator”:</p>
+
+{% highlight shell %}
+helm install --name greenplum-operator -f workspace/operator-values-overrides.yaml operator/
+{% endhighlight %}
+
+<p>If you did not create a YAML configuration file (as in the case with Minikube) omit the <b>-f</b> option:</p>
+
+{% highlight shell %}
+helm install --name greenplum-operator operator/
+{% endhighlight %}
+
+<p>Helm begins installing the new release into the Kubernetes namespace specified in the current Kubernetes context. If you want to install into a different namespace, include the <b>--namespace</b> option in the <b>helm</b> command.</p>
+
+<p>The command displays the following message and concludes with a link to this documentation:</p>
+
+{% highlight shell %}
+NAME:   greenplum-operator
+LAST DEPLOYED: Fri Oct  5 12:33:35 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/ServiceAccount
+NAME                                SECRETS  AGE
+greenplum-operator-service-account  1        3s
+
+==> v1/ClusterRole
+NAME                             AGE
+greenplum-operator-cluster-role  3s
+
+==> v1/ClusterRoleBinding
+NAME                                     AGE
+greenplum-operator-cluster-role-binding  3s
+
+==> v1/Deployment
+NAME                DESIRED  CURRENT  UP-TO-DATE  AVAILABLE  AGE
+greenplum-operator  1        1        1           1          3s
+
+==> v1/Pod(related)
+NAME                                 READY  STATUS   RESTARTS  AGE
+greenplum-operator-58dd68b9c5-frrbz  1/1    Running  0         3s
+
+==> v1/Secret
+NAME       TYPE                            DATA  AGE
+regsecret  kubernetes.io/dockerconfigjson  1     3s
+
+NOTES:
+greenplum-operator has been installed.
+
+Please see documentation at:
+http://greenplum-kubernetes.docs.pivotal.io/
+{% endhighlight %}
+
+<p><b>12. </b>Use <b>watch kubectl get all</b> to monitor the progress of the deployment. The deployment is complete when the Greenplum Operator pod is in the <b>Running</b> state and the replica set and load balancer are available. For example:</p>
+
+{% highlight shell %}
+watch kubectl get all
+{% endhighlight %}
+
+{% highlight shell %}
+NAME                                      READY     STATUS    RESTARTS   AGE
+pod/greenplum-operator-77d6dc5f79-wfgkk   1/1       Running   0          1m
+
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   12d
+
+NAME                                 DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/greenplum-operator   1         1         1            1           1m
+
+NAME                                            DESIRED   CURRENT   READY     AGE
+replicaset.apps/greenplum-operator-77d6dc5f79   1         1         1         1m
+{% endhighlight %}
+
+
+At this point, you can interact with the Greenplum Operator to deploy new Greenplum clusters or manage existing Greenplum clusters. See About the Greenplum Operator.
+
+<p><strong>Reference</strong></p>
+<ul>
+  <li><a href="http://greenplum-kubernetes.docs.pivotal.io/v060/using.html">About the Greenplum Operator.</a></li>
+  <li><a href="https://github.com/gridgentoo/gpdb">Арихитектура Greenplum Database</a></li>
+</ul>
+
+
+<iframe src="https://player.vimeo.com/video/144087611?title=0&byline=0&portrait=0"   
+width="640" height="360" frameborder="0" ></iframe>
+<p>Accelerating GeoSpatial Data Analytics With Pivotal Greenplum Database</p>
+
+
+<iframe src="https://player.vimeo.com/video/10286095?title=0&byline=0&portrait=0"   
+width="640" height="360" frameborder="0" ></iframe>
+<p>Winning with Greenplum & VCE</p>
