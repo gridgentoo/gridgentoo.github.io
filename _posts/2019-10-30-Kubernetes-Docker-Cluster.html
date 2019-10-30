@@ -1,0 +1,392 @@
+---
+layout: default
+title:  "Kubernetes Docker Cluster"
+date:   2019-10-30 01:12:00 +0200
+published: 2019-10-30 01:12:00 +0200
+comments: true  
+categories: development
+tags: [Kubernetes Docker Cluster, Kubernetes, Docker, HDP, Hortonworks, Hortonworks Data Platform, Kerberos, Ambari, Hadoop cluster, Apache Ranger, Apache Knox Gateway, Ranger, Knox, Hadoop REST API, REST API, Apache Atlas, Atlas, ZooKeeper, ZooKeeper Cluster, in-memory]
+github: "https://github.com/gridgentoo/zookeeper-release"
+---
+
+<p>Kubernetes is an open source platform for managing containerized applications developed by Google. It allows you to manage, scale, and automatically deploy your containerized applications in the clustered environment. With Kubernetes, we can orchestrate our containers across multiple hosts, scale the containerized applications with all resources on the fly, and have centralized container management environment.</p>
+<!--more-->
+<p>In this tutorial, I will show you step-by-step how to install and configure Kubernetes on CentOS 7. We will be using 1 server 'k8s-master' as the Kubernetes Host Master, and 2 servers as Kubernetes node, 'node01' and 'node02'.</p>
+
+<h2>Prerequisites</h2>
+
+<ul>
+  <li>3 CentOS 7 Servers</li>
+  <li>10.0.15.10      k8s-master</li>
+  <li>10.0.15.21      node01</li>
+  <li>10.0.15.22      node02</li>
+  <li> Root privileges</li>
+</ul>
+
+<h2>What we will do?</h2>
+
+<ul>
+  <li>Kubernetes Installation</li>
+  <li>Kubernetes Cluster Initialization</li>
+  <li>Adding node01 and node02 to the Cluster</li>
+</ul>
+
+<h2>Kubernetes Installation</h2>
+
+<p>In this first step, we will prepare those 3 servers for Kubernetes installation, so run all commands on the master and node servers.</p>
+
+<p>We will prepare all servers for Kubernetes installation by changing the existing configuration on servers, and also installating some packages, including docker-ce and kubernetes itself.</p>
+
+<p><b>Configure Hosts</b></p>
+
+<p>Edit hosts file on all server using the vim editor.</p>
+
+{% highlight shell %}
+vim /etc/hosts
+{% endhighlight %}
+
+<p>Paste the host's list below.</p>
+
+{% highlight shell %}
+10.0.15.10      k8s-master
+10.0.15.21      node01
+10.0.15.22      node02
+{% endhighlight %}
+
+<p>Save and exit.</p>
+
+<h2>Disable SELinux</h2>
+
+<p>In this tutorial, we will not cover about SELinux configuration for Docker, so we will disable it.</p>
+
+<p>Run the command below to disable SELinux.</p>  
+
+{% highlight shell %}
+setenforce 0
+sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+{% endhighlight %}
+
+<h2>Enable br_netfilter Kernel Module</h2>
+
+<p>The br_netfilter module is required for kubernetes installation. Enable this kernel module so that the packets traversing the bridge are processed by iptables for filtering and for port forwarding, and the kubernetes pods across the cluster can communicate with each other.</p>
+
+<p>Run the command below to enable the br_netfilter kernel module.</p>
+
+{% highlight shell %}
+modprobe br_netfilter
+echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables
+{% endhighlight %}
+
+<h2>Disable SWAP</h2>
+
+<p>Disable SWAP for kubernetes installation by running the following commands.</p>
+
+{% highlight shell %}
+swapoff -a
+{% endhighlight %}
+
+<p>And then edit the '/etc/fstab' file.</p>
+
+{% highlight shell %}
+vim /etc/fstab
+{% endhighlight %}
+
+<p>Comment the swap line UUID as below.</p>
+
+<a href="/assets/images/{{page.id}}/1b.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/1b.png" alt="fstab"/></a>
+
+<h2>Install Docker CE</h2>
+
+<p>Install the latest version of Docker-ce from the docker repository.</p>
+
+<p>Install the package dependencies for docker-ce.</p>
+
+{% highlight shell %}
+yum install -y yum-utils device-mapper-persistent-data lvm2
+{% endhighlight %}
+
+<p>Add the docker repository to the system and install docker-ce using the yum command.</p>
+
+{% highlight shell %}
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y docker-ce
+{% endhighlight %}
+
+<p>Wait for the docker-ce installation.</p>
+
+<a href="/assets/images/{{page.id}}/2.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/2.png" alt="yum install -y docker-ce"/></a>
+
+<h2>Install Kubernetes</h2>
+
+<p>Add the kubernetes repository to the centos 7 system by running the following command.</p>
+
+{% highlight shell %}
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+        https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+{% endhighlight %}
+
+<p>Now install the kubernetes packages kubeadm, kubelet, and kubectl using the yum command below.</p>
+
+{% highlight shell %}
+yum install -y kubelet kubeadm kubectl
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/3.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/3.png" alt="yum install -y kubelet kubeadm kubectl"/></a>
+
+<p>After the installation is complete, restart all those servers.</p>
+
+{% highlight shell %}
+sudo reboot
+{% endhighlight %}
+
+<p>Log in again to the server and start the services, docker and kubelet.</p>
+
+{% highlight shell %}
+systemctl start docker && systemctl enable docker
+systemctl start kubelet && systemctl enable kubelet
+{% endhighlight %}
+
+<h2>Change the cgroup-driver</h2>
+
+<p>We need to make sure the docker-ce and kubernetes are using same 'cgroup'.</p>
+
+<p>Check docker cgroup using the docker info command.</p>
+
+{% highlight shell %}
+docker info | grep -i cgroup
+{% endhighlight %}
+
+<p>And you see the docker is using <b>'cgroupfs'</b> as a cgroup-driver.</p>
+
+<p>Now run the command below to change the kuberetes cgroup-driver to 'cgroupfs'.</p>
+
+{% highlight shell %}
+sed -i 's/cgroup-driver=systemd/cgroup-driver=cgroupfs/g' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+{% endhighlight %}
+
+<p>Reload the systemd system and restart the kubelet service.</p>
+
+{% highlight shell %}
+systemctl daemon-reload
+systemctl restart kubelet
+{% endhighlight %}
+
+<p>Now we're ready to configure the Kubernetes Cluster.</p>
+
+<a href="/assets/images/{{page.id}}/4.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/4.png" alt="yum install -y kubelet kubeadm kubectl"/></a>
+
+<h2>Kubernetes Cluster Initialization</h2>
+
+<p>In this step, we will initialize the kubernetes master cluster configuration.</p>
+
+<p>Move the shell to the master server 'k8s-master' and run the command below to set up the kubernetes master.</p>
+
+{% highlight shell %}
+kubeadm init --apiserver-advertise-address=10.0.15.10 --pod-network-cidr=10.244.0.0/16
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/6.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/6.png" alt="initialize the kubernetes master cluster configuration"/></a>
+
+<p><b>Note:</b></p>
+
+<ul>
+  <li>--apiserver-advertise-address = determines which IP address Kubernetes should advertise its API server on.</li>
+  <li>--pod-network-cidr = specify the range of IP addresses for the pod network. We're using the 'flannel' virtual network. If you want to use another pod network such as weave-net or calico, change the range IP address.</li>
+</ul>
+
+<p>When the Kubernetes initialization is complete, you will get the result as below.</p>
+
+<a href="/assets/images/{{page.id}}/7.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/7.png" alt="initialize the kubernetes master cluster configuration"/></a>
+
+<p><b>Note:</b></p>
+
+<p>Copy the <b>'kubeadm join ... ... ...'</b> command to your text editor. The command will be used to register new nodes to the kubernetes cluster.</p>
+
+<p>Now in order to use Kubernetes, we need to run some commands as on the result.</p>
+
+<p>Create new '.kube' configuration directory and copy the configuration 'admin.conf'.</p>
+
+{% highlight shell %}
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+{% endhighlight %}
+
+<p>Next, deploy the flannel network to the kubernetes cluster using the kubectl command.</p>
+
+{% highlight shell %}
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/8.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/8.png" alt="kubectl apply -f"/></a>
+
+<p>The flannel network has been deployed to the Kubernetes cluster.</p>
+
+<p>Wait for a minute and then check kubernetes node and pods using commands below.</p>
+
+{% highlight shell %}
+kubectl get nodes
+kubectl get pods --all-namespaces
+{% endhighlight %}
+
+<p>And you will get the 'k8s-master' node is running as a 'master' cluster with status 'ready', and you will get all pods that are needed for the cluster, including the 'kube-flannel-ds' for network pod configuration.</p>
+
+<p>Make sure all kube-system pods status is 'running'.</p>
+
+<a href="/assets/images/{{page.id}}/9.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/9.png" alt="kubectl get nodes"/></a>
+
+<p>Kubernetes cluster master initialization and configuration has been completed.</p>
+
+<h2>Adding node01 and node02 to the Cluster</h2>
+
+<p>In this step, we will add node01 and node02 to join the 'k8s' cluster.</p>
+
+<p>Connect to the node01 server and run the kubeadm join command as we copied on the top.</p>
+
+{% highlight shell %}
+kubeadm join 10.0.15.10:6443 --token vzau5v.vjiqyxq26lzsf28e --discovery-token-ca-cert-hash sha256:e6d046ba34ee03e7d55e1f5ac6d2de09fd6d7e6959d16782ef0778794b94c61e
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/10.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/10.png" alt="kubeadm join "/></a>
+
+<p>Connect to the node02 server and run the kubeadm join command as we copied on the top.</p>
+
+{% highlight shell %}
+kubeadm join 10.0.15.10:6443 --token vzau5v.vjiqyxq26lzsf28e --discovery-token-ca-cert-hash sha256:e6d046ba34ee03e7d55e1f5ac6d2de09fd6d7e6959d16782ef0778794b94c61e
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/11.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/11.png" alt="kubeadm join "/></a>
+
+<p>Wait for some minutes and back to the 'k8s-master' master cluster server check the nodes and pods using the following command.</p>
+
+{% highlight shell %}
+kubectl get nodes
+kubectl get pods --all-namespaces
+{% endhighlight %}
+
+<p>Now you will get node01 and node02 has been added to the cluster with status 'ready'.</p>
+
+
+<a href="/assets/images/{{page.id}}/12.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/12.png" alt="kubectl get pods --all-namespaces"/></a>
+
+<p>node01 and node02 have been added to the kubernetes cluster.</p>
+
+<h2>Testing Create First Pod</h2>
+
+<p>In this step, we will do a test by deploying the Nginx pod to the kubernetes cluster. A pod is a group of one or more containers with shared storage and network that runs under Kubernetes. A Pod contains one or more containers, such as Docker container.</p>
+
+<p>Login to the 'k8s-master' server and create new deployment named 'nginx' using the kubectl command.</p>
+
+{% highlight shell %}
+kubectl create deployment nginx --image=nginx
+{% endhighlight %}
+
+<p>To see details of the 'nginx' deployment sepcification, run the following command.</p>
+
+{% highlight shell %}
+kubectl describe deployment nginx
+{% endhighlight %}
+
+<p>And you will get the nginx pod deployment specification.</p>
+
+<p>Next, we will expose the nginx pod accessible via the internet. And we need to create new service NodePort for this.</p>
+
+<p>Run the kubectl command below.</p>
+
+{% highlight shell %}
+kubectl create service nodeport nginx --tcp=80:80
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/13.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/13.png" alt="kubectl create service nodeport nginx"/></a>
+
+<p>Make sure there is no error. Now check the nginx service nodeport and IP using the kubectl command below.</p>
+
+{% highlight shell %}
+kubectl get pods
+kubectl get svc
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/14.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/14.png" alt="kubectl get pods"/></a>
+
+<p>Now you will get the nginx pod is now running under cluster IP address '10.160.60.38' port 80, and the node main IP address '10.0.15.x' on port '30691'.</p>
+
+<p>From the 'k8s-master' server run the curl command below.</p>
+
+{% highlight shell %}
+curl node01:30691
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/15.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/15.png" alt="curl node01:30691"/></a>
+
+{% highlight shell %}
+curl node02:30691
+{% endhighlight %}
+
+<a href="/assets/images/{{page.id}}/16.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/16.png" alt="curl node01:30691"/></a>
+
+<p>The Nginx Pod has now been deployed under the Kubernetes cluster and it's accessible via the internet.</p>
+
+<p>Now access from the web browser.</p>
+
+{% highlight shell %}
+http://10.0.15.10:30691/
+{% endhighlight %}
+
+<p>And you will get the Nginx default page.</p>
+
+<a href="/assets/images/{{page.id}}/17.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/17.png" alt="nginx"/></a>
+
+<p>On the node02 server - <b>http://10.0.15.11:30691/</b></p>
+
+<a href="/assets/images/{{page.id}}/18.png"> <img
+  class="center-block img-responsive"
+  src="/assets/images/{{page.id}}/18.png" alt="nginx"/></a>
+
+<p>The Kubernetes cluster Installation and configuration on CentOS 7 has been completed successfully.</p>
+######################################################################################################
+
+
+<p><strong>Reference</strong></p>
+<ul>
+  <li><a href="https://kubernetes.io/docs/home/">Kubernetes Documentation</a></li>
+</ul>
